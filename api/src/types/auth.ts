@@ -1,0 +1,36 @@
+import {  User, IUserPublic } from "./user";
+
+
+// Koristi se u middleware za token i za chekc login user
+export interface IUserPayload {
+  id: string;
+  email: string;
+  iat: number;
+  exp: number;
+}
+
+declare global {
+    namespace Express {
+      interface Request {
+        userId?: string;
+      }
+    }
+  }
+
+  export default interface RegistrationBody extends Omit<User, 'createdAt' | 'updatedAt' | 'role'> {
+  
+}
+
+// Extend login response because we can login user on registration
+export interface RegistrationResponse extends LoginResponse {
+}
+
+export interface LoginResponse {
+  user: IUserPublic,
+  token: string;
+}
+
+export interface LoginBody{
+  email:string,
+  password:string
+}

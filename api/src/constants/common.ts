@@ -1,0 +1,15 @@
+// Place for common constants
+export const MIN_PASSWORD_LEN = 6;
+
+// Using for bcrypt hashes
+export const HASH_SALT = 12;
+
+
+// Using for JWT login session
+export const jwtLoginExpiresInTime = '3h'
+export const jwtLoginExpiresInTimeRememberMe = '30d'
+
+export const jwtResetPasswordExpiresInTime = '15m'
+export const jwtChangeEmailExpiresInTime = '2h'
+
+
