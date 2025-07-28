@@ -31,7 +31,7 @@ export interface ProductVariant{
     size:Size,
     images:string[],
     stock:number,
-    isAvailable:boolean,
+    isAvailable?:boolean,
     hasImages:boolean
 }
 

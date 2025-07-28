@@ -25,8 +25,8 @@ const addColorAndNameToReqBody = async (
        return;
     }
 
-    req.app.locals.sharedData = {
-    variantColor: variation.color,
+    req.customData= {
+    variationColor: variation.color,
     product_id: product._id,
     productName: product.name,
   };

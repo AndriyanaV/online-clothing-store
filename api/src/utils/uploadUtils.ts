@@ -16,8 +16,8 @@ export const getFullUploadPath= (req:Request, options:UploadFilesOptions) => {
             if (uploadPath === UploadPath.PRODUCT) {
                   // console.log("podaci koje vidim")
                   // console.log(req.app.locals.sharedData.productName)
-                  const productName = req.app.locals.sharedData.productName?.toString().replace(/\s+/g, '_') || 'unknown_product';
-                  const color = req.app.locals.sharedData.variantColor?.toString().replace(/\s+/g, '_') || 'unknown_color';
+                  const productName = req.customData?.productName?.toString().replace(/\s+/g, '_') || 'unknown_product';
+                  const color = req.customData?.variationColor?.toString().replace(/\s+/g, '_') || 'unknown_color';
 
                   fullPath = path.join(fullPath, productName, color);
             }

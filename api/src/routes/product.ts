@@ -6,8 +6,6 @@ const productRouter=  express.Router();
 
 productRouter.post('/addProductBasicInfo',addProductBasicInfo);
 productRouter.post('/addProductVariationInfo',addProductVariationInfo);
-
-
 productRouter.post('/addProductVariationPics/:productId/:variationId', addColorAndNameToReqBody, addProductVariationPics)
 
 

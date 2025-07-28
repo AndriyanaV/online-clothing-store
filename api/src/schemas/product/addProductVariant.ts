@@ -8,5 +8,5 @@ export const  productVariantSchema: z.ZodType<ProductVariantToAdd> = z.object({
   color: z.nativeEnum(BaseColor).or(z.nativeEnum(ExtendedColor)),
   size: z.nativeEnum(Size), 
   stock: z.number().int().nonnegative(),
-  isAvailable: z.boolean()
+  isAvailable: z.boolean().default(true).optional()
 }).strict();
