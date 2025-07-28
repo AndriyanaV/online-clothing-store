@@ -8,12 +8,17 @@ import { validateRequestWithZod } from "../middleware/validateRequestMiddleware"
 import { request } from "http";
 import { Product } from "../models/product";
 import { addProductBasicInfoBodySchema } from "../schemas/product/addProduct";
-import { AddedProductInfo, ProductBasicInfoToAddDto, ProductVariantAddedDto, ProductVariantDto, ProductVariantToAdd } from "../types/product";
+import { AddedProductInfo, addProductVariantPicture, ProductBasicInfoToAddDto, ProductVariantAddedDto, ProductVariantDto, ProductVariantToAdd } from "../types/product";
 import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
+import path from "path";
+import { addProductVariantPhotoBodySchema } from "../schemas/product/addProductVariantPhoto";
+import { validateVarinatInfoBeforeImgUploadBodySchema } from "../schemas/product/validateVariantInfoBeforeUploadImg.ts";
+import { Types } from "mongoose";
+import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
 
 // Podešavaš opcije za upload
-const uploadOptions = {
+let uploadOptions = {
   type: UploadType.MULTIPLE,
   uploadPath: UploadPath.PRODUCT,
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
@@ -21,7 +26,7 @@ const uploadOptions = {
 
 
 //Dodavanje basic podataka o proizvodu
-export const addProductBadicInfo= [
+export const addProductBasicInfo= [
     validateRequestWithZod(addProductBasicInfoBodySchema),
     async(
         req:Request<{},{}, ProductBasicInfoToAddDto>,
@@ -38,6 +43,7 @@ export const addProductBadicInfo= [
 
         const newProduct = new Product({
                     category:req.body.category,
+                    subcategory:req.body.subcategory,
                     name: req.body.name,
                     description:req.body.description,
                     material:req.body.material,
@@ -59,6 +65,8 @@ export const addProductBadicInfo= [
                 _id: id,
                 name:newProduct.name
             };
+
+           
 
 
             res.status(200).json(createSuccessJson("BE_product_basic_info_added_successfully", addedProductInfo));
@@ -90,24 +98,32 @@ export const addProductVariationInfo= [
             size: req.body.size,
         });
 
+        const product= await Product.findOne({ _id: new Types.ObjectId(req.body.product_id) })
+
         if (existingVariant) {
              res.status(400).json(createErrorJson([{ type: 'addProductVariantInfo', msg: 'BE_product_variant_already_exists' }]));
              return;
         }
 
+        if (!product) {
+             res.status(400).json(createErrorJson([{ type: 'addProductVariantInfo', msg: 'BE_product_not_exists' }]));
+             return;
+        }
+
         const newProductVariant = new ProductVariant({
-                    product_id:req.body.product_id,
-                    color: req.body.color,
-                    size: req.body.size, 
-                    stock: req.body.stock,
-                    isAvailable: req.body.isAvailable
+                product_id:req.body.product_id,
+                color: req.body.color,
+                size: req.body.size, 
+                stock: req.body.stock,
+                isAvailable: req.body.isAvailable,
+                hasImages:false
             })
 
             await newProductVariant.save();
 
             console.log("Products variant info sucessfully added");
 
-            const id=newProductVariant._id.toString();
+            const id = newProductVariant._id.toString();
 
             const addedProductVariantInfo = {
                 _id: id,
@@ -116,10 +132,75 @@ export const addProductVariationInfo= [
             };
 
 
-            res.status(200).json(createSuccessJson("BE_product_basic_info_added_successfully", addedProductVariantInfo));
+            res.status(200).json(createSuccessJson("BE_variant_basic_info_added_successfully", addedProductVariantInfo));
             return;
 
            
+        }catch(error:any){
+                console.error(error);
+                res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
+                return;
+            }
+
+    }
+
+]
+
+
+
+// addColorAndNameToReqBody
+export const addProductVariationPics= [
+    uploadFiles(uploadOptions),
+    
+    async(
+        req:Request<{variationId: string, productId:string},{}, addProductVariantPicture>,
+        res:Response<ApiResponse<null>>
+    )=>{
+    try{
+        
+        const variation =await  ProductVariant.findOne({ _id: new Types.ObjectId(req.params.variationId ) });
+        const productId=req.params.productId;
+
+        if (!variation){
+            res.status(400).json(createErrorJson([{ type: 'addCategory', msg: 'BE_variation_not_found' }]));
+            return;
+       }
+
+        const files = req.files as Express.Multer.File[];
+
+        let imageUrls: string[] = [];
+
+        if (files && files.length > 0) {
+            imageUrls = files.map(file => 
+            path.relative('uploads', file.path).replace(/\\/g, '/')
+        );
+
+        variation.images = variation.images ? [...variation.images, ...imageUrls] : imageUrls;
+
+        // await variation.save();
+
+         const product= await Product.findOne({_id: new Types.ObjectId(req.params.productId)});
+
+        if (!product){
+            res.status(400).json(createErrorJson([{ type: 'addCategory', msg: 'product_not_found' }]));
+            return;
+        }
+
+        await variation.save();
+        
+        if (!product.variations.includes(variation._id)) {
+            product.variations.push(variation._id);
+            await product.save();
+        }
+
+        variation.hasImages=true;
+
+        await variation.save();
+
+        res.status(200).json(createSuccessJson('BE_variant_picture_added_sucessfully', null));
+        return;
+}
+
         }catch(error:any){
                     console.error(error);
                      res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
@@ -129,3 +210,5 @@ export const addProductVariationInfo= [
     }
 
 ]
+
+

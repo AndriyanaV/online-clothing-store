@@ -10,6 +10,7 @@ export const PRODUCT_KEY = 'Product';
 
 const  ProductSchema= new Schema<Product>({
     category:{ type: mongoose.Schema.Types.ObjectId, ref: CATEGORY_KEY ,  required: true},
+    subcategory:{ type: mongoose.Schema.Types.ObjectId, ref: CATEGORY_KEY ,  required: true},
     name:{type: String, required: true, unique:true} ,
     description:{type:String, required:true},
     material: { type: String, enum: Object.values(Material), required:true},

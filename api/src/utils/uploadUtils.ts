@@ -10,7 +10,17 @@ export const getFullUploadPath= (req:Request, options:UploadFilesOptions) => {
         try{
             const  uploadPath = options.uploadPath;
               
-            const fullPath= path.join(UPLOADS_FIELD, uploadPath);
+            let fullPath= path.join(UPLOADS_FIELD, uploadPath);
+
+            // Ako je proizvod – dodaj name i color iz body-ja
+            if (uploadPath === UploadPath.PRODUCT) {
+                  // console.log("podaci koje vidim")
+                  // console.log(req.app.locals.sharedData.productName)
+                  const productName = req.app.locals.sharedData.productName?.toString().replace(/\s+/g, '_') || 'unknown_product';
+                  const color = req.app.locals.sharedData.variantColor?.toString().replace(/\s+/g, '_') || 'unknown_color';
+
+                  fullPath = path.join(fullPath, productName, color);
+            }
 
             //Kreiraj direktorijum ako on ne posotji jos uvek
             if (!fs.existsSync(fullPath)) {
