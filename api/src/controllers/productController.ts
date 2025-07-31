@@ -13,9 +13,10 @@ import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
 import path from "path";
 import { addProductVariantPhotoBodySchema } from "../schemas/product/addProductVariantPhoto";
-import { validateVarinatInfoBeforeImgUploadBodySchema } from "../schemas/product/validateVariantInfoBeforeUploadImg.ts";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
+import { updateProductBasicInfoBodySchema } from "../schemas/product/updateProductBasicInfo";
+import { ObjectId} from "mongoose";
 
 // Podešavaš opcije za upload
 let uploadOptions = {
@@ -212,3 +213,49 @@ export const addProductVariationPics= [
 ]
 
 
+//Update 
+//Update basic podataka o proizvodu
+export const updateProductBasicInfo= [
+    validateRequestWithZod(updateProductBasicInfoBodySchema),
+    async(
+        req:Request<{productId:string},{}, ProductBasicInfoToAddDto>,
+        res:Response<ApiResponse<null>>
+    )=>{
+    try{
+
+        const product= await Product.findOne({_id:req.params.productId})
+
+        if (!product) {
+             res.status(400).json(createErrorJson([{ type: 'addProduct', msg: 'BE_product_not_found' }]));
+             return;
+        }
+
+        product.name= req.body.name ? req.body.name : product.name; 
+        product.description= req.body.description ? req.body.description : product.description;
+        product.category= req.body.category ?  new mongoose.Types.ObjectId(req.body.category) : product.category;
+        product.material= req.body.material ? req.body.material : product.material;
+        product.subcategory= req.body.subcategory ? new mongoose.Types.ObjectId(req.body.subcategory) : product.subcategory;
+        product.careInstructions= req.body.careInstructions ? req.body.careInstructions : product.careInstructions;
+        product.countryBrand= req.body.countryBrand ? req.body.countryBrand : product.countryBrand;
+        product.price= req.body.price ? req.body.price : product.price;
+        product.discountPrice= req.body.discountPrice ? req.body.discountPrice : product.discountPrice;
+        product.productTag= req.body.productTag ? req.body.productTag : product.productTag;
+        
+
+        await product.save();
+
+            console.log("Products main info sucessfully updated");
+
+            res.status(200).json(createSuccessJson("BE_product_basic_info_updated_successfully", null));
+            return;
+
+           
+        }catch(error:any){
+                    console.error(error);
+                     res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
+                     return;
+            }
+
+    }
+
+]

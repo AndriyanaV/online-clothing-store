@@ -66,3 +66,8 @@ export type ValidateVariantInfoBeforeUpload =
   Pick<ProductVariant, 'color'> & {
     product_id: string;
   };
+
+
+export type ProductBasicInfoToUpdateDto = Partial<ProductBasicInfoToAddDto>;
+
+export type ProductVariantToUpdate = Partial<Omit<ProductVariantToAdd, 'product_id' | 'color' | 'size'>>;

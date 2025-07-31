@@ -221,31 +221,6 @@ export const updateCategory = [
                 return;
             }
 
-            // const files = req.files as Express.Multer.File[];
-            // const oldImagePath = category.categoryImageUrl;
-            // let newPath = oldImagePath;
-
-            // if (files?.length) {
-            //     const firstFile = files[0];
-            //     const relativeFilePath = path
-            //         .relative('uploads', firstFile.path)
-            //         .replace(/\\/g, '/');
-
-            //     newPath = relativeFilePath;
-            //     category.categoryImageUrl = newPath;
-            // }
-
-            // if (oldImagePath && oldImagePath !== newPath) {
-            //     const fullOldPath = path.join('uploads', oldImagePath);
-            //     try {
-            //         await fs.promises.unlink(fullOldPath);
-            //         console.log('Old image deleted:', fullOldPath);
-            //     } catch (err) {
-            //         console.error('Failed to delete old image:', err);
-            //     }
-            // }
-
-            
             category.name=req.body.name;
             category.description=req.body.description;
             category.isMainCategory=req.body.isMainCategory;
