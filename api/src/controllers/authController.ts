@@ -71,10 +71,7 @@ export const register = [
 
             res.status(201).json(
                 createSuccessJson<RegistrationResponse>("BE_user_registered_successfully", response));
-            }
-
-
-            catch (error) {
+            }catch (error) {
                 console.error(error);
                 res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
             }
@@ -177,9 +174,7 @@ export const login= [
 
         res.status(200).json(createSuccessJson("BE_user_login_successfully", response));
 
-    }
-
-    catch(error:any){
+    }catch(error:any){
         console.error(error);
          res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
          return;

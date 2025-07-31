@@ -8,6 +8,7 @@ import connectDB from './config/connection';
 import path from 'path';
 import { UPLOADS_FIELD } from "./constants/uploads";
 import { AccessLevel } from './types/uploadFiles';
+import productRouter from "./routes/product";
 
 config();
 
@@ -31,6 +32,7 @@ connectDB();
 server.use('/api/auth', authRouter)
 server.use('/api/user', userRouter)
 server.use('/api/category', categoryRouter)
+server.use('/api/product', productRouter)
 
 server.get('/', (req, res) => {
     res.send('Server is running');

@@ -13,3 +13,4 @@ export const jwtResetPasswordExpiresInTime = '15m'
 export const jwtChangeEmailExpiresInTime = '2h'
 
 
+export const objectIdRegex = /^[a-f\d]{24}$/i;
