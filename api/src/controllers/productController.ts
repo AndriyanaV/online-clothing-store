@@ -2,13 +2,20 @@ import { uploadFiles } from "../middleware/uploadMilldeware";
 import { validateRequestWithZodAndCleanFiles } from "../middleware/validateRequestWithZodAndCleanFiles";
 import { ApiResponse } from "../types/common";
 import { UploadPath, UploadType } from "../types/uploadFiles";
-import { Request, Response } from 'express';
+import { Request, Response } from "express";
 import { createErrorJson, createSuccessJson } from "../utils/responseWrapper";
 import { validateRequestWithZod } from "../middleware/validateRequestMiddleware";
 import { request } from "http";
 import { Product } from "../models/product";
 import { addProductBasicInfoBodySchema } from "../schemas/product/addProduct";
-import { AddedProductInfo, addProductVariantPicture, ProductBasicInfoToAddDto, ProductVariantAddedDto, ProductVariantDto, ProductVariantToAdd } from "../types/product";
+import {
+  AddedProductInfo,
+  addProductVariantPicture,
+  ProductBasicInfoToAddDto,
+  ProductVariantAddedDto,
+  ProductVariantDto,
+  ProductVariantToAdd,
+} from "../types/product";
 import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
 import path from "path";
@@ -16,7 +23,7 @@ import { addProductVariantPhotoBodySchema } from "../schemas/product/addProductV
 import mongoose, { Types } from "mongoose";
 import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
 import { updateProductBasicInfoBodySchema } from "../schemas/product/updateProductBasicInfo";
-import { ObjectId} from "mongoose";
+import { ObjectId } from "mongoose";
 
 // Podešavaš opcije za upload
 let uploadOptions = {
@@ -25,237 +32,310 @@ let uploadOptions = {
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
 };
 
-
 //Dodavanje basic podataka o proizvodu
-export const addProductBasicInfo= [
-    validateRequestWithZod(addProductBasicInfoBodySchema),
-    async(
-        req:Request<{},{}, ProductBasicInfoToAddDto>,
-        res:Response<ApiResponse<AddedProductInfo>>
-    )=>{
-    try{
+export const addProductBasicInfo = [
+  validateRequestWithZod(addProductBasicInfoBodySchema),
+  async (
+    req: Request<{}, {}, ProductBasicInfoToAddDto>,
+    res: Response<ApiResponse<AddedProductInfo>>
+  ) => {
+    try {
+      const product = await Product.findOne({ name: req.body.name });
 
-        const product= await Product.findOne({name:req.body.name})
+      if (product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProduct", msg: "BE_product_already_exists" },
+            ])
+          );
+        return;
+      }
 
-        if (product) {
-             res.status(400).json(createErrorJson([{ type: 'addProduct', msg: 'BE_product_already_exists' }]));
-             return;
-        }
+      const newProduct = new Product({
+        category: req.body.category,
+        subcategory: req.body.subcategory,
+        name: req.body.name,
+        description: req.body.description,
+        material: req.body.material,
+        careInstructions: req.body.careInstructions,
+        countryBrand: req.body.countryBrand,
+        price: req.body.price,
+        discountPrice: req.body.discountPrice,
+        productTag: req.body.productTag,
+        variations: [],
+      });
 
-        const newProduct = new Product({
-                    category:req.body.category,
-                    subcategory:req.body.subcategory,
-                    name: req.body.name,
-                    description:req.body.description,
-                    material:req.body.material,
-                    careInstructions:req.body.careInstructions,
-                    countryBrand:req.body.countryBrand,
-                    price:req.body.price,
-                    discountPrice:req.body.discountPrice,
-                    productTag:req.body.productTag,
-                    variations: []
-            })
+      await newProduct.save();
 
-            await newProduct.save();
+      console.log("Products main info sucessfully added");
 
-            console.log("Products main info sucessfully added");
+      const id = newProduct._id.toString();
 
-            const id=newProduct._id.toString();
+      const addedProductInfo = {
+        _id: id,
+        name: newProduct.name,
+      };
 
-            const addedProductInfo = {
-                _id: id,
-                name:newProduct.name
-            };
-
-           
-
-
-            res.status(200).json(createSuccessJson("BE_product_basic_info_added_successfully", addedProductInfo));
-            return;
-
-           
-        }catch(error:any){
-                    console.error(error);
-                     res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
-                     return;
-            }
-
+      res
+        .status(200)
+        .json(
+          createSuccessJson(
+            "BE_product_basic_info_added_successfully",
+            addedProductInfo
+          )
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
     }
+  },
+];
 
-]
+export const addProductVariationInfo = [
+  validateRequestWithZod(productVariantSchema),
+  async (
+    req: Request<{}, {}, ProductVariantToAdd>,
+    res: Response<ApiResponse<ProductVariantAddedDto>>
+  ) => {
+    try {
+      const existingVariant = await ProductVariant.findOne({
+        product_id: req.body.product_id,
+        color: req.body.color,
+        size: req.body.size,
+      });
 
+      const product = await Product.findOne({
+        _id: new Types.ObjectId(req.body.product_id),
+      });
 
-export const addProductVariationInfo= [
-    validateRequestWithZod(productVariantSchema),
-    async(
-        req:Request<{},{}, ProductVariantToAdd>,
-        res:Response<ApiResponse<ProductVariantAddedDto>>
-    )=>{
-    try{
-        
-        const existingVariant = await ProductVariant.findOne({
-            product_id: req.body.product_id,
-            color: req.body.color,
-            size: req.body.size,
-        });
+      if (existingVariant) {
+        res.status(400).json(
+          createErrorJson([
+            {
+              type: "addProductVariantInfo",
+              msg: "BE_product_variant_already_exists",
+            },
+          ])
+        );
+        return;
+      }
 
-        const product= await Product.findOne({ _id: new Types.ObjectId(req.body.product_id) })
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProductVariantInfo", msg: "BE_product_not_exists" },
+            ])
+          );
+        return;
+      }
 
-        if (existingVariant) {
-             res.status(400).json(createErrorJson([{ type: 'addProductVariantInfo', msg: 'BE_product_variant_already_exists' }]));
-             return;
-        }
+      const newProductVariant = new ProductVariant({
+        product_id: req.body.product_id,
+        color: req.body.color,
+        size: req.body.size,
+        stock: req.body.stock,
+        isAvailable: req.body.isAvailable,
+        hasImages: false,
+      });
 
-        if (!product) {
-             res.status(400).json(createErrorJson([{ type: 'addProductVariantInfo', msg: 'BE_product_not_exists' }]));
-             return;
-        }
+      await newProductVariant.save();
 
-        const newProductVariant = new ProductVariant({
-                product_id:req.body.product_id,
-                color: req.body.color,
-                size: req.body.size, 
-                stock: req.body.stock,
-                isAvailable: req.body.isAvailable,
-                hasImages:false
-            })
+      console.log("Products variant info sucessfully added");
 
-            await newProductVariant.save();
+      const id = newProductVariant._id.toString();
 
-            console.log("Products variant info sucessfully added");
+      const addedProductVariantInfo = {
+        _id: id,
+        color: newProductVariant.color,
+      };
 
-            const id = newProductVariant._id.toString();
-
-            const addedProductVariantInfo = {
-                _id: id,
-                color:newProductVariant.color
-               
-            };
-
-
-            res.status(200).json(createSuccessJson("BE_variant_basic_info_added_successfully", addedProductVariantInfo));
-            return;
-
-           
-        }catch(error:any){
-                console.error(error);
-                res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
-                return;
-            }
-
+      res
+        .status(200)
+        .json(
+          createSuccessJson(
+            "BE_variant_basic_info_added_successfully",
+            addedProductVariantInfo
+          )
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
     }
-
-]
-
-
+  },
+];
 
 // addColorAndNameToReqBody
-export const addProductVariationPics= [
-    uploadFiles(uploadOptions),
-    
-    async(
-        req:Request<{variationId: string, productId:string},{}, addProductVariantPicture>,
-        res:Response<ApiResponse<null>>
-    )=>{
-    try{
-        
-        const variation =await  ProductVariant.findOne({ _id: new Types.ObjectId(req.params.variationId ) });
-        const productId=req.params.productId;
+export const addProductVariationPics = [
+  uploadFiles(uploadOptions),
 
-        if (!variation){
-            res.status(400).json(createErrorJson([{ type: 'addCategory', msg: 'BE_variation_not_found' }]));
-            return;
-       }
+  async (
+    req: Request<
+      { variationId: string; productId: string },
+      {},
+      addProductVariantPicture
+    >,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const variation = await ProductVariant.findOne({
+        _id: new Types.ObjectId(req.params.variationId),
+      });
+      const productId = req.params.productId;
 
-        const files = req.files as Express.Multer.File[];
+      if (!variation) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
 
-        let imageUrls: string[] = [];
+      const files = req.files as Express.Multer.File[];
 
-        if (files && files.length > 0) {
-            imageUrls = files.map(file => 
-            path.relative('uploads', file.path).replace(/\\/g, '/')
+      let imageUrls: string[] = [];
+
+      if (files && files.length > 0) {
+        imageUrls = files.map((file) =>
+          path.relative("uploads", file.path).replace(/\\/g, "/")
         );
 
-        variation.images = variation.images ? [...variation.images, ...imageUrls] : imageUrls;
+        variation.images = variation.images
+          ? [...variation.images, ...imageUrls]
+          : imageUrls;
 
         // await variation.save();
 
-         const product= await Product.findOne({_id: new Types.ObjectId(req.params.productId)});
-
-        if (!product){
-            res.status(400).json(createErrorJson([{ type: 'addCategory', msg: 'product_not_found' }]));
-            return;
-        }
-
-        await variation.save();
-        
-        if (!product.variations.includes(variation._id)) {
-            product.variations.push(variation._id);
-            await product.save();
-        }
-
-        variation.hasImages=true;
-
-        await variation.save();
-
-        res.status(200).json(createSuccessJson('BE_variant_picture_added_sucessfully', null));
-        return;
-}
-
-        }catch(error:any){
-                    console.error(error);
-                     res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
-                     return;
-            }
-
-    }
-
-]
-
-
-//Update 
-//Update basic podataka o proizvodu
-export const updateProductBasicInfo= [
-    validateRequestWithZod(updateProductBasicInfoBodySchema),
-    async(
-        req:Request<{productId:string},{}, ProductBasicInfoToAddDto>,
-        res:Response<ApiResponse<null>>
-    )=>{
-    try{
-
-        const product= await Product.findOne({_id:req.params.productId})
+        const product = await Product.findOne({
+          _id: new Types.ObjectId(req.params.productId),
+        });
 
         if (!product) {
-             res.status(400).json(createErrorJson([{ type: 'addProduct', msg: 'BE_product_not_found' }]));
-             return;
+          res
+            .status(400)
+            .json(
+              createErrorJson([
+                { type: "addCategory", msg: "product_not_found" },
+              ])
+            );
+          return;
         }
 
-        product.name= req.body.name ? req.body.name : product.name; 
-        product.description= req.body.description ? req.body.description : product.description;
-        product.category= req.body.category ?  new mongoose.Types.ObjectId(req.body.category) : product.category;
-        product.material= req.body.material ? req.body.material : product.material;
-        product.subcategory= req.body.subcategory ? new mongoose.Types.ObjectId(req.body.subcategory) : product.subcategory;
-        product.careInstructions= req.body.careInstructions ? req.body.careInstructions : product.careInstructions;
-        product.countryBrand= req.body.countryBrand ? req.body.countryBrand : product.countryBrand;
-        product.price= req.body.price ? req.body.price : product.price;
-        product.discountPrice= req.body.discountPrice ? req.body.discountPrice : product.discountPrice;
-        product.productTag= req.body.productTag ? req.body.productTag : product.productTag;
-        
+        await variation.save();
 
-        await product.save();
+        if (!product.variations.includes(variation._id)) {
+          product.variations.push(variation._id);
+          await product.save();
+        }
 
-            console.log("Products main info sucessfully updated");
+        variation.hasImages = true;
 
-            res.status(200).json(createSuccessJson("BE_product_basic_info_updated_successfully", null));
-            return;
+        await variation.save();
 
-           
-        }catch(error:any){
-                    console.error(error);
-                     res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
-                     return;
-            }
-
+        res
+          .status(200)
+          .json(
+            createSuccessJson("BE_variant_picture_added_sucessfully", null)
+          );
+        return;
+      }
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
     }
+  },
+];
 
-]
+//Update
+//Update basic podataka o proizvodu
+export const updateProductBasicInfo = [
+  validateRequestWithZod(updateProductBasicInfoBodySchema),
+  async (
+    req: Request<{ productId: string }, {}, ProductBasicInfoToAddDto>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const product = await Product.findOne({ _id: req.params.productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProduct", msg: "BE_product_not_found" },
+            ])
+          );
+        return;
+      }
+
+      product.name = req.body.name ? req.body.name : product.name;
+      product.description = req.body.description
+        ? req.body.description
+        : product.description;
+      product.category = req.body.category
+        ? new mongoose.Types.ObjectId(req.body.category)
+        : product.category;
+      product.material = req.body.material
+        ? req.body.material
+        : product.material;
+      product.subcategory = req.body.subcategory
+        ? new mongoose.Types.ObjectId(req.body.subcategory)
+        : product.subcategory;
+      product.careInstructions = req.body.careInstructions
+        ? req.body.careInstructions
+        : product.careInstructions;
+      product.countryBrand = req.body.countryBrand
+        ? req.body.countryBrand
+        : product.countryBrand;
+      product.price = req.body.price ? req.body.price : product.price;
+      product.discountPrice = req.body.discountPrice
+        ? req.body.discountPrice
+        : product.discountPrice;
+      product.productTag = req.body.productTag
+        ? req.body.productTag
+        : product.productTag;
+
+      await product.save();
+
+      console.log("Products main info sucessfully updated");
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson("BE_product_basic_info_updated_successfully", null)
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
