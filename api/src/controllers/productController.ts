@@ -15,6 +15,7 @@ import {
   ProductVariantAddedDto,
   ProductVariantDto,
   ProductVariantToAdd,
+  ProductVariantToUpdateDto,
 } from "../types/product";
 import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
@@ -24,6 +25,7 @@ import mongoose, { Types } from "mongoose";
 import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
 import { updateProductBasicInfoBodySchema } from "../schemas/product/updateProductBasicInfo";
 import { ObjectId } from "mongoose";
+import { updateProductVariantInfoBodySchema } from "../schemas/product/updateProductVariantInfo";
 
 // Podešavaš opcije za upload
 let uploadOptions = {
@@ -32,7 +34,7 @@ let uploadOptions = {
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
 };
 
-//Dodavanje basic podataka o proizvodu
+//Add product basic info
 export const addProductBasicInfo = [
   validateRequestWithZod(addProductBasicInfoBodySchema),
   async (
@@ -99,6 +101,7 @@ export const addProductBasicInfo = [
   },
 ];
 
+//Add product variant basic info
 export const addProductVariationInfo = [
   validateRequestWithZod(productVariantSchema),
   async (
@@ -109,11 +112,10 @@ export const addProductVariationInfo = [
       const existingVariant = await ProductVariant.findOne({
         product_id: req.body.product_id,
         color: req.body.color,
-        size: req.body.size,
       });
 
       const product = await Product.findOne({
-        _id: new Types.ObjectId(req.body.product_id),
+        _id: req.body.product_id,
       });
 
       if (existingVariant) {
@@ -142,15 +144,18 @@ export const addProductVariationInfo = [
       const newProductVariant = new ProductVariant({
         product_id: req.body.product_id,
         color: req.body.color,
-        size: req.body.size,
-        stock: req.body.stock,
-        isAvailable: req.body.isAvailable,
+        sizes: req.body.sizes,
         hasImages: false,
       });
 
       await newProductVariant.save();
 
       console.log("Products variant info sucessfully added");
+
+      if (!product.variations.includes(newProductVariant._id)) {
+        product.variations.push(newProductVariant._id);
+        await product.save();
+      }
 
       const id = newProductVariant._id.toString();
 
@@ -180,7 +185,7 @@ export const addProductVariationInfo = [
   },
 ];
 
-// addColorAndNameToReqBody
+//Add product variant image
 export const addProductVariationPics = [
   uploadFiles(uploadOptions),
 
@@ -222,8 +227,6 @@ export const addProductVariationPics = [
           ? [...variation.images, ...imageUrls]
           : imageUrls;
 
-        // await variation.save();
-
         const product = await Product.findOne({
           _id: new Types.ObjectId(req.params.productId),
         });
@@ -239,12 +242,12 @@ export const addProductVariationPics = [
           return;
         }
 
-        await variation.save();
+        // await variation.save();
 
-        if (!product.variations.includes(variation._id)) {
-          product.variations.push(variation._id);
-          await product.save();
-        }
+        // if (!product.variations.includes(variation._id)) {
+        //   product.variations.push(variation._id);
+        //   await product.save();
+        // }
 
         variation.hasImages = true;
 
@@ -270,7 +273,7 @@ export const addProductVariationPics = [
 ];
 
 //Update
-//Update basic podataka o proizvodu
+//Update basic info about product
 export const updateProductBasicInfo = [
   validateRequestWithZod(updateProductBasicInfoBodySchema),
   async (
@@ -326,6 +329,57 @@ export const updateProductBasicInfo = [
         .status(200)
         .json(
           createSuccessJson("BE_product_basic_info_updated_successfully", null)
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Update basic info about product
+export const updateProductVariantInfo = [
+  validateRequestWithZod(updateProductVariantInfoBodySchema),
+  async (
+    req: Request<{ variantId: string }, {}, ProductVariantToUpdateDto>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const variant = await ProductVariant.findOne({
+        _id: req.params.variantId,
+      });
+
+      const updateData = req.body;
+
+      if (!variant) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProduct", msg: "BE_variant_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const updatedVariant = await ProductVariant.findByIdAndUpdate(
+        req.params.variantId,
+        updateData,
+        { new: true, runValidators: true }
+      );
+
+      console.log("Variant main info sucessfully updated");
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson("BE_variant_basic_info_updated_successfully", null)
         );
       return;
     } catch (error: any) {

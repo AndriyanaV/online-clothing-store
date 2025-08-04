@@ -1,48 +1,48 @@
 export enum Material {
-  Cotton = 'cotton',
-  Polyester = 'polyester',
-  Linen = 'linen',
-  Viscose = 'viscose'
+  COTTON = "Cotton",
+  POLYESTER = "Polyester",
+  LINEN = "Linen",
+  VISCOSE = "Viscose",
 }
 
 export enum CareInstructions {
-  MachineWash = "machine_wash",
-  HandWash = "hand_wash",
-  DryCleanOnly = "dry_clean_only"
+  MACHINE_WASH = "Machine vash",
+  HAND_WASH = "Hand wash",
+  DRY_CLEAN_ONLY = "Dry clean only",
 }
 
 export enum CountryBrand {
-  Italy = "Italy",
-  France = "France",
-  Germany = "Germany",
-  Serbia = "Serbia",
-  Turkey = "Turkey"
+  ITALY = "Italy",
+  FRANCE = "France",
+  GERMANY = "Germany",
+  SERBIA = "Serbia",
+  TURKEY = "Turkey",
 }
 
 export enum BaseColor {
-  Red = "red",
-  Blue = "blue",
-  Green = "green",
-  Yellow = "yellow",
-  Black = "black",
-  White = "white",
-  Orange = "orange",
-  Purple = "purple",
-  Brown = "brown",
-  Gray = "gray"
+  RED = "red",
+  BLUE = "blue",
+  GREEN = "green",
+  YELLOW = "yellow",
+  BLACK = "black",
+  WHITE = "white",
+  ORANGE = "orange",
+  PURPLE = "purple",
+  BROWN = "brown",
+  GRAY = "gray",
 }
 
 export enum ExtendedColor {
-  Cyan = "cyan",
-  Magenta = "magenta",
-  Lime = "lime",
-  Pink = "pink",
-  Navy = "navy",
-  Olive = "olive",
-  Teal = "teal",
-  Maroon = "maroon",
-  Silver = "silver",
-  Gold = "gold"
+  CYAN = "cyan",
+  MAGENTA = "magenta",
+  LIME = "lime",
+  PINK = "pink",
+  NAVY = "navy",
+  OLIVE = "olive",
+  TEAL = "teal",
+  MAROON = "maroon",
+  SILVER = "silver",
+  GOLD = "gold",
 }
 
 export enum Size {
@@ -56,13 +56,13 @@ export enum Size {
 }
 
 export enum ProductTag {
-  AutumnCollection = "autumn_collection",
-  WinterCollection = "winter_collection",
-  SummerCollection = "summer_collection",
-  NewArrival = "new_arrival",
-  BestSeller = "best_seller",
-  Modern = "modern",
-  LimitedEdition = "limited_edition",
-  Sale = "sale",
-  Exclusive = "exclusive"
+  AUTUMN_COLLECTION = "autumn_collection",
+  WINTER_COLLECTION = "winter_collection",
+  SUMMER_COLLECTION = "summer_collection",
+  NEW_ARRIVAL = "new_arrival",
+  BEST_SELLER = "best_seller",
+  MODERN = "modern",
+  LIMITED_EDITION = "limited_edition",
+  SALE = "sale",
+  EXCLUSIVE = "exclusive",
 }
