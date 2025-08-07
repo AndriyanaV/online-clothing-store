@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { ProductVariant } from "../types/product";
+import { ProductVariant, SizeInfo } from "../types/product";
 import { PRODUCT_KEY } from "./product";
 import { BaseColor, ExtendedColor, Size } from "../constants/product";
 import { boolean, number, string } from "zod";
@@ -7,6 +7,12 @@ import { boolean, number, string } from "zod";
 const Schema = mongoose.Schema;
 
 export const PRODUCT_VARIANT_KEY = "ProductVariant";
+
+const SizeInfoSchema = new Schema<SizeInfo>({
+  size: { type: String, enum: Object.values(Size), required: true },
+  // isAvailable: { type: Boolean, required: true },
+  stock: { type: Number, required: true },
+});
 
 const productVariantSchema = new Schema<ProductVariant>(
   {
@@ -16,14 +22,11 @@ const productVariantSchema = new Schema<ProductVariant>(
       enum: [...Object.values(BaseColor), ...Object.values(ExtendedColor)],
       required: true,
     },
-    size: {
-      type: String,
-      enum: Object.values(Size),
+    sizes: {
+      type: [SizeInfoSchema],
       required: true,
     },
     images: [{ type: String }],
-    stock: { type: Number, required: true, min: 0 },
-    isAvailable: { type: Boolean, default: true },
     hasImages: { type: Boolean, default: false },
   },
   { timestamps: true }
