@@ -26,6 +26,7 @@ import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
 import { updateProductBasicInfoBodySchema } from "../schemas/product/updateProductBasicInfo";
 import { ObjectId } from "mongoose";
 import { updateProductVariantInfoBodySchema } from "../schemas/product/updateProductVariantInfo";
+import fs from "fs";
 
 // Podešavaš opcije za upload
 let uploadOptions = {
@@ -190,18 +191,13 @@ export const addProductVariationPics = [
   uploadFiles(uploadOptions),
 
   async (
-    req: Request<
-      { variationId: string; productId: string },
-      {},
-      addProductVariantPicture
-    >,
+    req: Request<{ variationId: string; productId: string }, {}, {}>,
     res: Response<ApiResponse<null>>
   ) => {
     try {
       const variation = await ProductVariant.findOne({
         _id: new Types.ObjectId(req.params.variationId),
       });
-      const productId = req.params.productId;
 
       if (!variation) {
         res
@@ -210,6 +206,19 @@ export const addProductVariationPics = [
             createErrorJson([
               { type: "addCategory", msg: "BE_variation_not_found" },
             ])
+          );
+        return;
+      }
+
+      const productId = req.params.productId;
+
+      const product = await Product.findOne({ id: productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
           );
         return;
       }
@@ -230,17 +239,6 @@ export const addProductVariationPics = [
         const product = await Product.findOne({
           _id: new Types.ObjectId(req.params.productId),
         });
-
-        if (!product) {
-          res
-            .status(400)
-            .json(
-              createErrorJson([
-                { type: "addCategory", msg: "product_not_found" },
-              ])
-            );
-          return;
-        }
 
         // await variation.save();
 
@@ -355,8 +353,6 @@ export const updateProductVariantInfo = [
         _id: req.params.variantId,
       });
 
-      const updateData = req.body;
-
       if (!variant) {
         res
           .status(400)
@@ -368,9 +364,21 @@ export const updateProductVariantInfo = [
         return;
       }
 
+      const updatedSizes = variant.sizes.map((existingSize) => {
+        const incomingSize = req.body.sizes!.find(
+          (s) => s.size === existingSize.size
+        );
+
+        return incomingSize
+          ? { size: existingSize.size, stock: incomingSize.stock }
+          : existingSize;
+      });
+
       const updatedVariant = await ProductVariant.findByIdAndUpdate(
         req.params.variantId,
-        updateData,
+        {
+          sizes: updatedSizes,
+        },
         { new: true, runValidators: true }
       );
 
@@ -381,6 +389,84 @@ export const updateProductVariantInfo = [
         .json(
           createSuccessJson("BE_variant_basic_info_updated_successfully", null)
         );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Update variant image
+export const updateProductVariationPics = [
+  uploadFiles(uploadOptions),
+
+  async (
+    req: Request<{ variationId: string }, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const variation = await ProductVariant.findOne({
+        _id: new Types.ObjectId(req.params.variationId),
+      });
+
+      if (!variation) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const files = req.files as Express.Multer.File[];
+
+      if (files.length === 0) {
+        res
+          .status(400)
+          .json(createErrorJson([{ type: "general", msg: "No_image" }]));
+        return;
+      }
+
+      let newImagesUrls: string[] = [];
+      const oldImagesUrls = variation.images;
+
+      if (files && files.length > 0) {
+        newImagesUrls = files.map((file) =>
+          path.relative("uploads", file.path).replace(/\\/g, "/")
+        );
+      }
+
+      variation.images = newImagesUrls;
+
+      if (oldImagesUrls) {
+        await Promise.all(
+          oldImagesUrls.map(async (oldImagePath) => {
+            const fullOldPath = path.join("uploads", oldImagePath);
+            try {
+              await fs.promises.unlink(fullOldPath);
+              console.log("Old image deleted:", fullOldPath);
+            } catch (err) {
+              console.error("Failed to delete old image:", err);
+            }
+          })
+        );
+      }
+
+      variation.hasImages = true;
+
+      await variation.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_variant_picture_added_sucessfully", null));
       return;
     } catch (error: any) {
       console.error(error);

@@ -33,9 +33,9 @@ export interface ProductDto extends Omit<Product, "_id"> {
 export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
 
 export interface SizeInfo {
-  size: string;
+  size: Size;
   stock: number;
-  isAvailable: boolean;
+  // isAvailable: boolean;
 }
 
 export interface ProductVariant {
@@ -83,9 +83,12 @@ export interface addProductVariantPicture {
 
 export type ProductBasicInfoToUpdateDto = Partial<ProductBasicInfoToAddDto>;
 
-export type SizeInfoToUpdate = Partial<SizeInfo>;
+// export interface SizeInfoToUpdate extends SizeInfo;
 
 export interface ProductVariantToUpdateDto
-  extends Partial<Omit<ProductVariantToAdd, "product_id" | "color" | "sizes">> {
-  sizes?: SizeInfoToUpdate[];
+  extends Omit<
+    ProductVariantToAdd,
+    "product_id" | "color" | "sizes" | "images" | "hasImages"
+  > {
+  sizes: SizeInfo[];
 }
