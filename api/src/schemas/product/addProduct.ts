@@ -28,6 +28,7 @@ export const addProductBasicInfoBodySchema: z.ZodType<ProductBasicInfoToAddDto> 
         .nonnegative("Discount must be zero or positive")
         .optional()
         .default(0),
+      modelCode: z.string().min(1).max(30),
       productTag: z.array(z.nativeEnum(ProductTag)).optional().default([]),
     })
     .strict();

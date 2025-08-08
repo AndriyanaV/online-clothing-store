@@ -24,10 +24,14 @@ export interface Product {
   discountPrice?: number;
   variations: Array<Types.ObjectId>;
   productTag?: ProductTag[];
+  modelCode: string;
 }
 
-export interface ProductDto extends Omit<Product, "_id"> {
+export interface ProductDto
+  extends Omit<Product, "_id" | "category" | "subcategory"> {
   _id: string;
+  category: string;
+  subcategory: string;
 }
 
 export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
@@ -35,7 +39,12 @@ export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
 export interface SizeInfo {
   size: Size;
   stock: number;
+  SKU: string;
   // isAvailable: boolean;
+}
+
+export interface SizeInfoDto extends SizeInfo {
+  isAviable: boolean;
 }
 
 export interface ProductVariant {
@@ -57,14 +66,18 @@ export interface ProductBasicInfoToAddDto
   subcategory: string;
 }
 
-export interface ProductVariantToAdd
-  extends Omit<ProductVariant, "_id" | "images" | "product_id" | "hasImages"> {
-  product_id: string;
-}
+export interface SizeInfoToAdd extends Omit<SizeInfo, "SKU"> {}
 
-// export interface ProductVariantAddedDto {
-//   _id: string;
-// }
+export interface SizeInfoToUpdate extends SizeInfoToAdd {}
+
+export interface ProductVariantToAdd
+  extends Omit<
+    ProductVariant,
+    "_id" | "images" | "product_id" | "hasImages" | "sizes"
+  > {
+  product_id: string;
+  sizes: SizeInfoToAdd[];
+}
 
 export interface ProductVariantAddedDto {
   _id: string;
@@ -81,8 +94,10 @@ export interface addProductVariantPicture {
 //     product_id: string;
 //   };
 
-export type ProductBasicInfoToUpdateDto = Partial<ProductBasicInfoToAddDto>;
-
+export type ProductBasicInfoToUpdateDto = Omit<
+  Partial<ProductBasicInfoToAddDto>,
+  "modelCode"
+>;
 // export interface SizeInfoToUpdate extends SizeInfo;
 
 export interface ProductVariantToUpdateDto
@@ -90,5 +105,5 @@ export interface ProductVariantToUpdateDto
     ProductVariantToAdd,
     "product_id" | "color" | "sizes" | "images" | "hasImages"
   > {
-  sizes: SizeInfo[];
+  sizes: SizeInfoToUpdate[];
 }
