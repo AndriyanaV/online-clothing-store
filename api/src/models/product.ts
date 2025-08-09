@@ -8,6 +8,7 @@ import {
 } from "../constants/product";
 import { PRODUCT_VARIANT_KEY } from "./productVariant";
 import { CATEGORY_KEY } from "./category";
+import { string } from "zod";
 
 const Schema = mongoose.Schema;
 
@@ -40,7 +41,9 @@ const ProductSchema = new Schema<Product>(
     },
     price: { type: Number, required: true },
     discountPrice: { type: Number, min: 0 },
+    modelCode: { type: String, required: true, unique: true },
     productTag: [{ type: String, enum: Object.values(ProductTag) }],
+
     variations: [
       { type: mongoose.Schema.Types.ObjectId, ref: PRODUCT_VARIANT_KEY },
     ],

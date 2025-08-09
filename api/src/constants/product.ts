@@ -66,3 +66,5 @@ export enum ProductTag {
   SALE = "sale",
   EXCLUSIVE = "exclusive",
 }
+
+export const productTagsArray = Object.values(ProductTag);

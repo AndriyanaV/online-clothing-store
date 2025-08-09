@@ -24,10 +24,15 @@ export interface Product {
   discountPrice?: number;
   variations: Array<Types.ObjectId>;
   productTag?: ProductTag[];
+  modelCode: string;
 }
 
-export interface ProductDto extends Omit<Product, "_id"> {
+export interface ProductDto
+  extends Omit<Product, "_id" | "category" | "subcategory" | "variations"> {
   _id: string;
+  category: string;
+  subcategory: string;
+  variations: SizeInfoDto[];
 }
 
 export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
@@ -35,7 +40,11 @@ export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
 export interface SizeInfo {
   size: Size;
   stock: number;
-  // isAvailable: boolean;
+  SKU: string;
+}
+
+export interface SizeInfoDto extends SizeInfo {
+  isAvailable: boolean;
 }
 
 export interface ProductVariant {
@@ -44,7 +53,6 @@ export interface ProductVariant {
   color: BaseColor | ExtendedColor;
   sizes: SizeInfo[];
   images: string[];
-  hasImages: boolean;
 }
 
 export interface ProductVariantDto extends Omit<ProductVariant, "_id"> {
@@ -57,14 +65,25 @@ export interface ProductBasicInfoToAddDto
   subcategory: string;
 }
 
-export interface ProductVariantToAdd
-  extends Omit<ProductVariant, "_id" | "images" | "product_id" | "hasImages"> {
-  product_id: string;
+export interface VariantSizeInfo {
+  _id: string;
+  size: Size;
+  stock: number;
+  isAviable: boolean;
 }
 
-// export interface ProductVariantAddedDto {
-//   _id: string;
-// }
+export interface SizeInfoToAdd extends Omit<SizeInfo, "SKU"> {}
+
+export interface SizeInfoToUpdate extends SizeInfoToAdd {}
+
+export interface ProductVariantToAdd
+  extends Omit<
+    ProductVariant,
+    "_id" | "images" | "product_id" | "hasImages" | "sizes"
+  > {
+  product_id: string;
+  sizes: SizeInfoToAdd[];
+}
 
 export interface ProductVariantAddedDto {
   _id: string;
@@ -76,19 +95,23 @@ export interface addProductVariantPicture {
   name: string;
 }
 
-// export type ValidateVariantInfoBeforeUpload = Pick<Product, "name"> &
-//   Pick<ProductVariant, "color"> & {
-//     product_id: string;
-//   };
-
-export type ProductBasicInfoToUpdateDto = Partial<ProductBasicInfoToAddDto>;
-
-// export interface SizeInfoToUpdate extends SizeInfo;
+export type ProductBasicInfoToUpdateDto = Omit<
+  Partial<ProductBasicInfoToAddDto>,
+  "modelCode"
+>;
 
 export interface ProductVariantToUpdateDto
   extends Omit<
     ProductVariantToAdd,
     "product_id" | "color" | "sizes" | "images" | "hasImages"
   > {
-  sizes: SizeInfo[];
+  sizes: SizeInfoToUpdate[];
+}
+
+export interface ProductBySku extends Omit<ProductVariantDto, "sizes"> {
+  sizes: SizeInfoDto[];
+}
+
+export interface TagsToAdd {
+  tags: ProductTag[];
 }
