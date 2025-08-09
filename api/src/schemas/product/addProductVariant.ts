@@ -6,7 +6,6 @@ import { objectIdRegex } from "../../constants/common";
 const SizeInfoSchema = z.object({
   size: z.nativeEnum(Size),
   stock: z.number().int().nonnegative(),
-  // isAvailable: z.boolean(),
 });
 
 export const productVariantSchema: z.ZodType<ProductVariantToAdd> = z

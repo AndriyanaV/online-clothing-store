@@ -12,6 +12,7 @@ import {
   AddedProductInfo,
   addProductVariantPicture,
   ProductBasicInfoToAddDto,
+  ProductBySku,
   ProductDto,
   ProductVariantAddedDto,
   ProductVariantDto,
@@ -19,6 +20,8 @@ import {
   ProductVariantToUpdateDto,
   SizeInfo,
   SizeInfoToAdd,
+  TagsToAdd,
+  VariantSizeInfo,
 } from "../types/product";
 import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
@@ -31,6 +34,8 @@ import { ObjectId } from "mongoose";
 import { updateProductVariantInfoBodySchema } from "../schemas/product/updateProductVariantInfo";
 import fs from "fs";
 import { Category } from "../models/category";
+import { ProductTag, productTagsArray } from "../constants/product";
+import { addProductTagBodySchema } from "../schemas/product/addProductTag";
 
 //Upload options
 let uploadOptions = {
@@ -62,6 +67,38 @@ export const addProductBasicInfo = [
         return;
       }
 
+      const category = await Category.findOne({
+        _id: req.body.category,
+        isMainCategory: true,
+      });
+
+      if (!category) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProduct", msg: "BE_category_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      const subcategory = await Category.findOne({
+        _id: req.body.subcategory,
+        isMainCategory: false,
+      });
+
+      if (!subcategory) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProduct", msg: "BE_subcategory_not_exsist" },
+            ])
+          );
+        return;
+      }
+
       const newProduct = new Product({
         category: req.body.category,
         subcategory: req.body.subcategory,
@@ -71,7 +108,7 @@ export const addProductBasicInfo = [
         careInstructions: req.body.careInstructions,
         countryBrand: req.body.countryBrand,
         price: req.body.price,
-        discountPrice: req.body.discountPrice,
+        discountPrice: req.body.discountPrice ? req.body.discountPrice : 0,
         modelCode: req.body.modelCode,
         productTag: req.body.productTag,
         variations: [],
@@ -158,7 +195,6 @@ export const addProductVariationInfo = [
         product_id: req.body.product_id,
         color: req.body.color,
         sizes: sizesWithSKU,
-        hasImages: false,
       });
 
       await newProductVariant.save();
@@ -208,7 +244,7 @@ export const addProductVariationPics = [
   ) => {
     try {
       const variation = await ProductVariant.findOne({
-        _id: new Types.ObjectId(req.params.variationId),
+        _id: req.params.variationId,
       });
 
       if (!variation) {
@@ -255,8 +291,6 @@ export const addProductVariationPics = [
       variation.images = variation.images
         ? [...variation.images, ...imageUrls]
         : imageUrls;
-
-      variation.hasImages = true;
 
       await variation.save();
 
@@ -439,7 +473,7 @@ export const updateProductVariationPics = [
 
       const files = req.files as Express.Multer.File[];
 
-      if (files.length === 0) {
+      if (files.length === 0 && !files) {
         res
           .status(400)
           .json(createErrorJson([{ type: "general", msg: "No_image" }]));
@@ -449,11 +483,9 @@ export const updateProductVariationPics = [
       let newImagesUrls: string[] = [];
       const oldImagesUrls = variation.images;
 
-      if (files && files.length > 0) {
-        newImagesUrls = files.map((file) =>
-          path.relative("uploads", file.path).replace(/\\/g, "/")
-        );
-      }
+      newImagesUrls = files.map((file) =>
+        path.relative("uploads", file.path).replace(/\\/g, "/")
+      );
 
       variation.images = newImagesUrls;
 
@@ -470,8 +502,6 @@ export const updateProductVariationPics = [
           })
         );
       }
-
-      variation.hasImages = true;
 
       await variation.save();
 
@@ -492,7 +522,7 @@ export const updateProductVariationPics = [
 ];
 
 //Read
-const getAllproductsBySubcategory = async (
+export const getAllproductsBySubcategory = async (
   req: Request<{ subcategoryId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto[]>>
 ) => {
@@ -515,6 +545,7 @@ const getAllproductsBySubcategory = async (
 
     const products = await Product.find({
       subcategory: req.params.subcategoryId,
+      variations: { $exists: true, $not: { $size: 0 } },
     })
       .select("-createdAt -updatedAt")
       .populate("variations")
@@ -528,7 +559,11 @@ const getAllproductsBySubcategory = async (
       variations: p.variations.map((v: any) => ({
         ...v,
         _id: v._id.toString(),
-        isAvailable: v.stock > 0,
+        sizes: v.sizes.map((s: any) => ({
+          ...s,
+          _id: s._id.toString(),
+          isAvailable: s.stock > 0,
+        })),
       })),
     }));
 
@@ -551,7 +586,7 @@ const getAllproductsBySubcategory = async (
 };
 
 //get product
-const getProduct = async (
+export const getProduct = async (
   req: Request<{ productId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto>>
 ) => {
@@ -597,8 +632,63 @@ const getProduct = async (
       variations: returnedProduct.variations.map((v: any) => ({
         ...v,
         _id: v._id.toString(),
-        isAviable: v.stock > 0,
+        sizes: v.sizes.map((s: any) => ({
+          ...s,
+          _id: s._id.toString(),
+          isAvailable: s.stock > 0,
+        })),
       })),
+    };
+
+    res
+      .status(200)
+      .json(createSuccessJson("BE_get_product_success", productDto));
+  } catch (error: any) {
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
+
+//get product variation by SKU
+export const getProductVariantBySku = async (
+  req: Request<{ sku: string }, {}, {}>,
+  res: Response<ApiResponse<ProductBySku>>
+) => {
+  try {
+    const productVariantToFind = await ProductVariant.findOne(
+      { "sizes.SKU": req.params.sku }, // filtriraj po SKU
+      {
+        sizes: { $elemMatch: { SKU: req.params.sku } }, // vrati samo tu veličinu
+        color: 1,
+        product_id: 1,
+        images: 1,
+      }
+    ).lean();
+
+    if (!productVariantToFind) {
+      res
+        .status(400)
+        .json(
+          createErrorJson([
+            { type: "getProducts", msg: "BE_product_not_exsist" },
+          ])
+        );
+      return;
+    }
+
+    const returnedProductBySku: ProductBySku = {
+      ...productVariantToFind,
+      _id: productVariantToFind._id.toString(),
+      sizes: [
+        {
+          ...productVariantToFind.sizes[0],
+          isAvailable: productVariantToFind.sizes[0].stock > 0,
+        },
+      ],
     };
 
     res
@@ -606,7 +696,7 @@ const getProduct = async (
       .json(
         createSuccessJson(
           "BE_get_main_category_subcategories_success",
-          productDto
+          returnedProductBySku
         )
       );
   } catch (error: any) {
@@ -619,4 +709,91 @@ const getProduct = async (
   }
 };
 
-//get product variation by SKU
+//get
+export const returnavailableTagsForProduct = [
+  async (
+    req: Request<{ productId: string }, {}, {}>,
+    res: Response<ApiResponse<TagsToAdd>>
+  ) => {
+    try {
+      const product = await Product.findOne({ _id: req.params.productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "getProducts", msg: "BE_product_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      const availableTags: TagsToAdd = { tags: [] };
+
+      productTagsArray.forEach((tag) => {
+        if (!product.productTag?.includes(tag)) {
+          availableTags.tags.push(tag);
+        }
+      });
+      res
+        .status(200)
+        .json(
+          createSuccessJson("BE_available_tags_get_sucessfully", availableTags)
+        );
+    } catch (error: any) {
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Add product tag
+export const addTagsToProduct = [
+  validateRequestWithZod(addProductTagBodySchema),
+  async (
+    req: Request<{ productId: string }, {}, TagsToAdd>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const product = await Product.findOne({ _id: req.params.productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "getProducts", msg: "BE_product_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      const tagsToAdd: ProductTag[] = req.body.tags;
+
+      product.productTag = product.productTag || [];
+
+      const existingTags = new Set(product.productTag);
+      for (const tag of tagsToAdd) {
+        if (!existingTags.has(tag)) {
+          product.productTag.push(tag);
+        }
+      }
+
+      await product.save();
+
+      res.status(200).json(createSuccessJson("BE_tag_added_sucessfully", null));
+    } catch (error: any) {
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];

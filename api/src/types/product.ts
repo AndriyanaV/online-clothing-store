@@ -28,10 +28,11 @@ export interface Product {
 }
 
 export interface ProductDto
-  extends Omit<Product, "_id" | "category" | "subcategory"> {
+  extends Omit<Product, "_id" | "category" | "subcategory" | "variations"> {
   _id: string;
   category: string;
   subcategory: string;
+  variations: SizeInfoDto[];
 }
 
 export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
@@ -40,11 +41,10 @@ export interface SizeInfo {
   size: Size;
   stock: number;
   SKU: string;
-  // isAvailable: boolean;
 }
 
 export interface SizeInfoDto extends SizeInfo {
-  isAviable: boolean;
+  isAvailable: boolean;
 }
 
 export interface ProductVariant {
@@ -53,7 +53,6 @@ export interface ProductVariant {
   color: BaseColor | ExtendedColor;
   sizes: SizeInfo[];
   images: string[];
-  hasImages: boolean;
 }
 
 export interface ProductVariantDto extends Omit<ProductVariant, "_id"> {
@@ -64,6 +63,13 @@ export interface ProductBasicInfoToAddDto
   extends Omit<Product, "_id" | "variations" | "category" | "subcategory"> {
   category: string;
   subcategory: string;
+}
+
+export interface VariantSizeInfo {
+  _id: string;
+  size: Size;
+  stock: number;
+  isAviable: boolean;
 }
 
 export interface SizeInfoToAdd extends Omit<SizeInfo, "SKU"> {}
@@ -89,16 +95,10 @@ export interface addProductVariantPicture {
   name: string;
 }
 
-// export type ValidateVariantInfoBeforeUpload = Pick<Product, "name"> &
-//   Pick<ProductVariant, "color"> & {
-//     product_id: string;
-//   };
-
 export type ProductBasicInfoToUpdateDto = Omit<
   Partial<ProductBasicInfoToAddDto>,
   "modelCode"
 >;
-// export interface SizeInfoToUpdate extends SizeInfo;
 
 export interface ProductVariantToUpdateDto
   extends Omit<
@@ -106,4 +106,12 @@ export interface ProductVariantToUpdateDto
     "product_id" | "color" | "sizes" | "images" | "hasImages"
   > {
   sizes: SizeInfoToUpdate[];
+}
+
+export interface ProductBySku extends Omit<ProductVariantDto, "sizes"> {
+  sizes: SizeInfoDto[];
+}
+
+export interface TagsToAdd {
+  tags: ProductTag[];
 }

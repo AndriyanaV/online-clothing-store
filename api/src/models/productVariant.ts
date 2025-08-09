@@ -10,8 +10,8 @@ export const PRODUCT_VARIANT_KEY = "ProductVariant";
 
 const SizeInfoSchema = new Schema<SizeInfo>({
   size: { type: String, enum: Object.values(Size), required: true },
-  // isAvailable: { type: Boolean, required: true },
   stock: { type: Number, required: true },
+  SKU: { type: String, required: true, unique: true },
 });
 
 const productVariantSchema = new Schema<ProductVariant>(
@@ -27,7 +27,6 @@ const productVariantSchema = new Schema<ProductVariant>(
       required: true,
     },
     images: [{ type: String }],
-    hasImages: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

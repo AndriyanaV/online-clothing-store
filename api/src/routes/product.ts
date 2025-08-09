@@ -3,6 +3,11 @@ import {
   addProductBasicInfo,
   addProductVariationInfo,
   addProductVariationPics,
+  addTagsToProduct,
+  getAllproductsBySubcategory,
+  getProduct,
+  getProductVariantBySku,
+  returnavailableTagsForProduct,
   updateProductBasicInfo,
   updateProductVariantInfo,
   updateProductVariationPics,
@@ -18,8 +23,9 @@ productRouter.post(
   addColorAndNameToReqBody,
   addProductVariationPics
 );
+productRouter.post("/addTagsToProduct/:productId", addTagsToProduct);
 
-//Routes to update variant info and image
+//Routes to update product and variant info and image
 productRouter.put("/updateProductBasicInfo/:productId", updateProductBasicInfo);
 productRouter.put(
   "/updateProductVariantInfo/:variantId",
@@ -31,4 +37,15 @@ productRouter.put(
   updateProductVariationPics
 );
 
+//Get
+productRouter.get(
+  "/getAllproductsBySubcategory/:subcategoryId",
+  getAllproductsBySubcategory
+);
+productRouter.get("/getProduct/:productId", getProduct);
 export default productRouter;
+productRouter.get("/getProductVariantBySku/:sku", getProductVariantBySku);
+productRouter.get(
+  "/returnavailableTagsForProduct/:productId",
+  returnavailableTagsForProduct
+);
