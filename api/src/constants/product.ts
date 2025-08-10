@@ -68,3 +68,8 @@ export enum ProductTag {
 }
 
 export const productTagsArray = Object.values(ProductTag);
+
+export const allColorsArray = [
+  ...Object.values(BaseColor),
+  ...Object.values(ExtendedColor),
+];

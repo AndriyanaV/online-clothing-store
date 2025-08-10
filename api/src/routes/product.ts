@@ -4,9 +4,14 @@ import {
   addProductVariationInfo,
   addProductVariationPics,
   addTagsToProduct,
+  addVariationSize,
   getAllproductsBySubcategory,
+  getAllproductsBySubcategoryAdmin,
+  getAvailableColorsForProductVariationasync,
   getProduct,
+  getProductsByTag,
   getProductVariantBySku,
+  getProductWithAllVariations,
   returnavailableTagsForProduct,
   updateProductBasicInfo,
   updateProductVariantInfo,
@@ -24,6 +29,10 @@ productRouter.post(
   addProductVariationPics
 );
 productRouter.post("/addTagsToProduct/:productId", addTagsToProduct);
+productRouter.post(
+  "/addVariationSize/:productId/:variationId",
+  addVariationSize
+);
 
 //Routes to update product and variant info and image
 productRouter.put("/updateProductBasicInfo/:productId", updateProductBasicInfo);
@@ -48,4 +57,17 @@ productRouter.get("/getProductVariantBySku/:sku", getProductVariantBySku);
 productRouter.get(
   "/returnavailableTagsForProduct/:productId",
   returnavailableTagsForProduct
+);
+productRouter.get("/getProductsByTag/:tag", getProductsByTag);
+productRouter.get(
+  "/getProductWithAllVariations/:productId",
+  getProductWithAllVariations
+);
+productRouter.get(
+  "/getAllproductsBySubcategoryAdmin/:subcategoryId",
+  getAllproductsBySubcategoryAdmin
+);
+productRouter.get(
+  "/getAvailableColorsForProductVariationasync/:productId",
+  getAvailableColorsForProductVariationasync
 );

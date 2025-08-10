@@ -115,3 +115,7 @@ export interface ProductBySku extends Omit<ProductVariantDto, "sizes"> {
 export interface TagsToAdd {
   tags: ProductTag[];
 }
+
+export interface AvailableVariantColors {
+  availableColors: (BaseColor | ExtendedColor)[];
+}
