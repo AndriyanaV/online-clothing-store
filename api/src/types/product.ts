@@ -119,3 +119,14 @@ export interface TagsToAdd {
 export interface AvailableVariantColors {
   availableColors: (BaseColor | ExtendedColor)[];
 }
+
+export interface ProductFilter {
+  material?: Material;
+  discountPrice?: Object;
+  price?: Object;
+}
+
+export interface VariationFilter {
+  color?: BaseColor | ExtendedColor;
+  sizes?: Object;
+}

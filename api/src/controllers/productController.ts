@@ -15,6 +15,7 @@ import {
   ProductBasicInfoToAddDto,
   ProductBySku,
   ProductDto,
+  ProductFilter,
   ProductVariantAddedDto,
   ProductVariantDto,
   ProductVariantToAdd,
@@ -23,6 +24,7 @@ import {
   SizeInfoToAdd,
   TagsToAdd,
   VariantSizeInfo,
+  VariationFilter,
 } from "../types/product";
 import { productVariantSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
@@ -37,8 +39,12 @@ import fs from "fs";
 import { Category } from "../models/category";
 import {
   allColorsArray,
+  BaseColor,
+  ExtendedColor,
+  Material,
   ProductTag,
   productTagsArray,
+  Size,
 } from "../constants/product";
 import { addProductTagBodySchema } from "../schemas/product/addProductTag";
 import { addVariationSizeBodySchema } from "../schemas/product/addVariationSizeSchema";
@@ -605,6 +611,8 @@ export const updateProductVariationPics = [
 ];
 
 //Read
+
+//get all products by subcategory - for users
 export const getAllproductsBySubcategory = async (
   req: Request<{ subcategoryId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto[]>>
@@ -669,7 +677,7 @@ export const getAllproductsBySubcategory = async (
   }
 };
 
-//get product
+//get product - for users
 export const getProduct = async (
   req: Request<{ productId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto>>
@@ -1130,7 +1138,7 @@ export const getAvailableColorsForProductVariationasync = async (
 //Delete
 
 //Delete product and variants
-export const deteProduct = async (
+export const deleteProduct = async (
   req: Request<{ productId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
 ) => {
@@ -1199,13 +1207,13 @@ export const deteProduct = async (
 };
 
 //Delete product variant
-export const deteProductVariant = async (
-  req: Request<{ variantId: string }, {}, {}>,
+export const deleteProductVariation = async (
+  req: Request<{ variationId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
 ) => {
   try {
     const variantToDelete = await ProductVariant.findOneAndDelete({
-      _id: req.params.variantId,
+      _id: req.params.variationId,
     });
 
     if (!variantToDelete) {
@@ -1256,6 +1264,111 @@ export const deteProductVariant = async (
       }
     }
   } catch (error: any) {
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
+
+export const getAllproductsBySubcategoryWithFilters = async (
+  req: Request<
+    { subcategoryId: string },
+    {},
+    {},
+    {
+      material?: Material;
+      discountPrice: boolean;
+      minPrice: number;
+      maxPrice: number;
+      color: BaseColor | ExtendedColor;
+      size: Size;
+    }
+  >,
+  res: Response<ApiResponse<ProductDto[]>>
+) => {
+  try {
+    const subcategory = await Category.findOne({
+      _id: req.params.subcategoryId,
+      isMainCategory: false,
+    });
+
+    if (!subcategory) {
+      res
+        .status(400)
+        .json(
+          createErrorJson([
+            { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+          ])
+        );
+      return;
+    }
+
+    const { material, discountPrice, minPrice, maxPrice, color, size } =
+      req.query;
+
+    let productFilter: ProductFilter = {};
+    let variationFilter: VariationFilter = {};
+
+    if (material) productFilter.material = material as Material;
+    if (discountPrice) productFilter.discountPrice = { $gt: 0 };
+
+    if (minPrice && maxPrice) {
+      productFilter.price = { $gt: minPrice, $lt: maxPrice };
+    } else if (minPrice) {
+      productFilter.price = { $gt: minPrice };
+    } else if (maxPrice) {
+      productFilter.price = { $lt: maxPrice };
+    }
+
+    if (color) variationFilter.color = color;
+    if (size) variationFilter.sizes = { $elemMatch: { size } };
+
+    const variationMatch = {
+      images: { $exists: true, $ne: [] },
+      ...variationFilter,
+    };
+
+    const products = await Product.find({
+      subcategory: req.params.subcategoryId,
+      variations: { $exists: true, $not: { $size: 0 } },
+      ...productFilter,
+    })
+      .select("-createdAt -updatedAt")
+      .populate({
+        path: "variations",
+        match: variationMatch,
+        select: "-createdAt -updatedAt",
+      })
+      .lean();
+
+    const productsDto: ProductDto[] = products.map((p) => ({
+      ...p,
+      _id: p._id.toString(),
+      category: p.category.toString(),
+      subcategory: p.subcategory.toString(),
+      variations: p.variations.map((v: any) => ({
+        ...v,
+        _id: v._id.toString(),
+        sizes: v.sizes
+          .filter((s: any) => s.size === size)
+          .map((s: any) => ({
+            ...s,
+            _id: s._id.toString(),
+            isAvailable: s.stock > 0,
+          })),
+      })),
+    }));
+
+    res
+      .status(200)
+      .json(
+        createSuccessJson("BE_products_of_subcategories_success", productsDto)
+      );
+  } catch (error: any) {
+    console.log(error);
     res
       .status(500)
       .json(

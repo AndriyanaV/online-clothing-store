@@ -5,8 +5,11 @@ import {
   addProductVariationPics,
   addTagsToProduct,
   addVariationSize,
+  deleteProduct,
+  deleteProductVariation,
   getAllproductsBySubcategory,
   getAllproductsBySubcategoryAdmin,
+  getAllproductsBySubcategoryWithFilters,
   getAvailableColorsForProductVariationasync,
   getProduct,
   getProductsByTag,
@@ -70,4 +73,15 @@ productRouter.get(
 productRouter.get(
   "/getAvailableColorsForProductVariationasync/:productId",
   getAvailableColorsForProductVariationasync
+);
+productRouter.get(
+  "/getAllproductsBySubcategoryWithFilters/:subcategoryId",
+  getAllproductsBySubcategoryWithFilters
+);
+
+// Delete Routes
+productRouter.delete("/deleteProduct/:productId", deleteProduct);
+productRouter.delete(
+  "/deleteProductVariation/variationId",
+  deleteProductVariation
 );
