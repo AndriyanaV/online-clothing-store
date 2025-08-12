@@ -115,3 +115,18 @@ export interface ProductBySku extends Omit<ProductVariantDto, "sizes"> {
 export interface TagsToAdd {
   tags: ProductTag[];
 }
+
+export interface AvailableVariantColors {
+  availableColors: (BaseColor | ExtendedColor)[];
+}
+
+export interface ProductFilter {
+  material?: Material;
+  discountPrice?: Object;
+  price?: Object;
+}
+
+export interface VariationFilter {
+  color?: BaseColor | ExtendedColor;
+  sizes?: Object;
+}
