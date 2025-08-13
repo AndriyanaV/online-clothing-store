@@ -207,6 +207,7 @@ export const addProductVariationInfo = [
       const newProductVariant = new ProductVariant({
         product_id: req.body.product_id,
         color: req.body.color,
+        images: [],
         sizes: sizesWithSKU,
       });
 

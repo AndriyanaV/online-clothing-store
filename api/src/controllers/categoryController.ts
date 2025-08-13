@@ -1,9 +1,6 @@
 import { validateRequestWithZod } from "../middleware/validateRequestMiddleware";
 import { Category } from "../models/category";
-import {
-  addCategoryBodySchema,
-  updateCategorySchema,
-} from "../schemas/category/addCategory";
+import { addMainCategoryBodySchema } from "../schemas/category/addMainCategorySchema";
 import { Request, Response } from "express";
 import { createErrorJson, createSuccessJson } from "../utils/responseWrapper";
 import { ApiResponse } from "../types/common";
@@ -19,52 +16,20 @@ import {
   CategoryWithPopulatedSubs,
   SubCategoryInfo,
   SubCategory,
-  categoryDto,
-  UpdateCategoryDto,
+  CategoryDto,
+  AddMainCategoryDto,
+  AddedCategoryInfo,
+  SubcategoriesInfo,
+  UpdateMainCategoryDto,
+  AddSubcategoryDto,
 } from "../types/category";
 import { request } from "http";
 import mongoose from "mongoose";
 import fs from "fs";
 import { validateRequestWithZodAndCleanFiles } from "../middleware/validateRequestWithZodAndCleanFiles";
-
-// export const addCategory=[
-//     validateRequestWithZod(addCategoryBodySchema),
-
-//     async(
-//         req:Request<{},{}, Category>,
-//         res:Response<ApiResponse<null>>
-//     )=>{
-
-//         try{
-
-//             const categoryName= await Category.findOne({name:req.body.name})
-
-//             if(categoryName){
-//                 res.status(400).json(createErrorJson([{ type: 'addCategory', msg: 'BE_category_already_exists' }]));
-//                 return;
-//             }
-
-//             const newCategory= new Category({
-//                 name:req.body.name,
-//                 description:req.body.description,
-//                 isMainCategory:req.body.isMainCategory,
-//                 subcategories:req.body.subcategories
-//             })
-
-//             await newCategory.save();
-
-//             res.status(200).json(createSuccessJson('BE_category_sucessfully_added', null));
-//             return;
-
-//         }
-//         catch(error:any){
-//                     console.error(error);
-//                      res.status(500).json(createErrorJson([{ type: 'general', msg: 'BE_something_went_wrong' }]));
-//                      return;
-//             }
-
-//     }
-// ]
+import { updateMainCategoryBodySchema } from "../schemas/category/updateMainCateogrySchema";
+import { addSubcategoryBodySchema } from "../schemas/category/addSubcategoriesSchema";
+import { updateSubcategoryBodySchema } from "../schemas/category/updateSubcategorySchema";
 
 // Podešavaš opcije za upload
 const uploadOptions = {
@@ -73,78 +38,137 @@ const uploadOptions = {
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
 };
 
-export const addCategory = [
-  uploadFiles(uploadOptions),
-  validateRequestWithZodAndCleanFiles(
-    addCategoryBodySchema,
-    UploadPath.CATEGORY
-  ),
+//Add category  route
+// export const addCategory = [
+//   uploadFiles(uploadOptions),
+//   validateRequestWithZodAndCleanFiles(
+//     addCategoryBodySchema,
+//     UploadPath.CATEGORY
+//   ),
 
-  async (req: Request<{}, {}, Category>, res: Response<ApiResponse<null>>) => {
+//   async (req: Request<{}, {}, Category>, res: Response<ApiResponse<null>>) => {
+//     try {
+//       const categoryName = await Category.findOne({ name: req.body.name });
+//       const files = req.files as Express.Multer.File[];
+
+//       if (categoryName) {
+//         if (files && files.length > 0) {
+//           // req.files je niz fajlova, uzimamo prvi fajl
+//           const firstFile = files[0];
+//           const filePath = path.join(
+//             __dirname,
+//             "..",
+//             "..",
+//             "uploads",
+//             UploadPath.CATEGORY,
+//             firstFile.filename
+//           );
+
+//           try {
+//             // Koristimo promisified verziju unlink sa await
+//             await fs.promises.unlink(filePath);
+//             console.log(`Successfully deleted uploaded file: ${filePath}`);
+//           } catch (err) {
+//             console.error("Failed to delete uploaded file:", err);
+//           }
+//         }
+
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "BE_category_already_exists" },
+//             ])
+//           );
+//         return;
+//       }
+
+//       let imageUrl = null;
+//       // const files = req.files as Express.Multer.File[];
+
+//       if (files && files.length > 0) {
+//         const firstFile = files[0];
+
+//         const relativeFilePath = path
+//           .relative("uploads", firstFile.path)
+//           .replace(/\\/g, "/");
+//         imageUrl = relativeFilePath;
+//       }
+
+//       const newCategory = new Category({
+//         name: req.body.name,
+//         description: req.body.description,
+//         isMainCategory: req.body.isMainCategory,
+//         subcategories: req.body.subcategories,
+//         categoryImageUrl: imageUrl,
+//       });
+
+//       await newCategory.save();
+
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_category_sucessfully_added", null));
+//       return;
+//     } catch (error: any) {
+//       console.error(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
+
+//Add cateogry  route
+export const addMainCategoryTextInfo = [
+  validateRequestWithZod(addMainCategoryBodySchema),
+
+  async (
+    req: Request<{}, {}, AddMainCategoryDto>,
+    res: Response<ApiResponse<AddedCategoryInfo>>
+  ) => {
     try {
       const categoryName = await Category.findOne({ name: req.body.name });
-      const files = req.files as Express.Multer.File[];
 
       if (categoryName) {
-        if (files && files.length > 0) {
-          // req.files je niz fajlova, uzimamo prvi fajl
-          const firstFile = files[0];
-          const filePath = path.join(
-            __dirname,
-            "..",
-            "..",
-            "uploads",
-            UploadPath.CATEGORY,
-            firstFile.filename
-          );
-
-          try {
-            // Koristimo promisified verziju unlink sa await
-            await fs.promises.unlink(filePath);
-            console.log(`Successfully deleted uploaded file: ${filePath}`);
-          } catch (err) {
-            console.error("Failed to delete uploaded file:", err);
-          }
-        }
-
         res
-          .status(400)
+          .status(409)
           .json(
             createErrorJson([
-              { type: "addCategory", msg: "BE_category_already_exists" },
+              { type: "category", msg: "BE_category_name_alredy_exsist" },
             ])
           );
         return;
       }
 
-      let imageUrl = null;
-      // const files = req.files as Express.Multer.File[];
-
-      if (files && files.length > 0) {
-        const firstFile = files[0];
-
-        const relativeFilePath = path
-          .relative("uploads", firstFile.path)
-          .replace(/\\/g, "/");
-        imageUrl = relativeFilePath;
-      }
-
-      const newCategory = new Category({
+      const categoryToAdd = new Category({
         name: req.body.name,
         description: req.body.description,
-        isMainCategory: req.body.isMainCategory,
-        subcategories: req.body.subcategories,
-        categoryImageUrl: imageUrl,
+        isMainCategory: true,
+        subcategories: [],
+        isActive: req.body.isActive,
+        categoryImageUrl: "",
       });
 
-      await newCategory.save();
+      await categoryToAdd.save();
+
+      const addedMainCateogry: AddedCategoryInfo = {
+        _id: categoryToAdd._id.toString(),
+        name: categoryToAdd.name,
+      };
 
       res
         .status(200)
-        .json(createSuccessJson("BE_category_sucessfully_added", null));
+        .json(
+          createSuccessJson(
+            "BE_main_category_sucessfully_added",
+            addedMainCateogry
+          )
+        );
       return;
     } catch (error: any) {
-      console.error(error);
       res
         .status(500)
         .json(
@@ -155,12 +179,154 @@ export const addCategory = [
   },
 ];
 
-export const getMainCategories = async (
+//Add cateogry subcategory
+export const addSubcategoryTextInfo = [
+  validateRequestWithZod(addSubcategoryBodySchema),
+
+  async (
+    req: Request<{ categoryId: string }, {}, AddSubcategoryDto>,
+    res: Response<ApiResponse<AddedCategoryInfo>>
+  ) => {
+    try {
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
+
+      if (!category) {
+        res
+          .status(409)
+          .json(
+            createErrorJson([
+              { type: "category", msg: "BE_main_category_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      const subcategoryToAdd = new Category({
+        name: req.body.name,
+        description: req.body.description,
+        isMainCategory: false,
+        subcategories: [],
+        isActive: req.body.isActive,
+        categoryImageUrl: "",
+      });
+
+      await subcategoryToAdd.save();
+
+      category.subcategories?.push(subcategoryToAdd._id);
+
+      const addedMainCateogry: AddedCategoryInfo = {
+        _id: subcategoryToAdd._id.toString(),
+        name: subcategoryToAdd.name,
+      };
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson(
+            "BE_main_category_sucessfully_added",
+            addedMainCateogry
+          )
+        );
+      return;
+    } catch (error: any) {
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Add category image
+export const AddCategoryImage = [
+  uploadFiles(uploadOptions),
+
+  async (
+    req: Request<{ categoryId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const category = await Category.findOne({ _id: req.params.categoryId });
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        return res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "image_not_sended" }])
+          );
+      }
+
+      if (!category) {
+        const firstFile = files[0];
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "..",
+          "uploads",
+          UploadPath.CATEGORY,
+          firstFile.filename
+        );
+
+        try {
+          await fs.promises.unlink(filePath);
+          console.log(`Successfully deleted uploaded file: ${filePath}`);
+        } catch (err) {
+          console.error("Failed to delete uploaded file:", err);
+        }
+
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "category_not_found" },
+            ])
+          );
+        return;
+      }
+
+      let imageUrl = null;
+      const firstFile = files[0];
+
+      const relativeFilePath = path
+        .relative("uploads", firstFile.path)
+        .replace(/\\/g, "/");
+      imageUrl = relativeFilePath;
+
+      category.categoryImageUrl = imageUrl;
+
+      await category.save();
+      res
+        .status(200)
+        .json(createSuccessJson("BE_category_image_sucessfully_added", null));
+      return;
+    } catch (error: any) {
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Get Main Categories- for Admin
+export const getMainCategoriesAdmin = async (
   req: Request<{}, {}, {}>,
   res: Response<ApiResponse<CategoryInfo[]>>
 ) => {
   try {
-    const mainCategories = await Category.find({ isMainCategory: true }).lean();
+    const mainCategories = await Category.find({
+      isMainCategory: true,
+    })
+      .select("_id name")
+      .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
       ...cat,
@@ -185,6 +351,43 @@ export const getMainCategories = async (
   }
 };
 
+//Get active main categories- for user
+export const getMainCategories = async (
+  req: Request<{}, {}, {}>,
+  res: Response<ApiResponse<CategoryInfo[]>>
+) => {
+  try {
+    const mainCategories = await Category.find({
+      isMainCategory: true,
+      isActive: true,
+    })
+      .select("_id name")
+      .lean();
+
+    const categoriesWithStringId = mainCategories.map((cat) => ({
+      ...cat,
+      _id: cat._id.toString(),
+    }));
+
+    res
+      .status(201)
+      .json(
+        createSuccessJson<CategoryInfo[]>(
+          "BE_categories_fetch_successfully",
+          categoriesWithStringId
+        )
+      );
+  } catch (error: any) {
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
+
+//get active subcategories of main category - for user
 export const getSubcategoriesOfMainCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
   res: Response<ApiResponse<CategoryWithPopulatedSubs>>
@@ -192,25 +395,16 @@ export const getSubcategoriesOfMainCategory = async (
   try {
     const categoryId = req.params.categoryId;
 
-    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      res.status(404).json(
-        createErrorJson([
-          {
-            type: "get-main-category-subcategories",
-            msg: "BE_invalid_categoryId_format",
-          },
-        ])
-      );
-      return;
-    }
-
-    const mainCategoryWithSubcategories: CategoryWithPopulatedSubs | null =
-      (await Category.findOne({ _id: categoryId, isMainCategory: true })
-        .select(
-          "-name -description -isMainCategory -categoryImageUrl -createdAt -updatedAt"
-        )
-        .populate("subcategories")
-        .lean()) as unknown as CategoryWithPopulatedSubs;
+    const mainCategoryWithSubcategories = await Category.findOne({
+      _id: categoryId,
+      isMainCategory: true,
+    })
+      .select(" -isMainCategory -createdAt -updatedAt -categoryImageUrl ")
+      .populate<{ subcategories: SubcategoriesInfo[]; isActive: true }>({
+        path: "subcategories",
+        select: "-createdAt -updatedAt -subcategories -isMainCategory",
+      })
+      .lean();
 
     if (!mainCategoryWithSubcategories) {
       res.status(404).json(
@@ -224,30 +418,24 @@ export const getSubcategoriesOfMainCategory = async (
       return;
     }
 
-    mainCategoryWithSubcategories._id =
-      mainCategoryWithSubcategories._id.toString();
+    const retrensSubcategories: CategoryWithPopulatedSubs = {
+      ...mainCategoryWithSubcategories,
+      _id: mainCategoryWithSubcategories._id.toString(),
+      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
+        (sub) => ({
+          ...sub,
+          _id: sub._id.toString(),
+        })
+      ),
+    };
 
-    // Prolazimo kroz svaki element u subcategories i konvertujemo _id u string
-    mainCategoryWithSubcategories.subcategories =
-      mainCategoryWithSubcategories.subcategories.map((subcat) => ({
-        ...subcat,
-        _id: subcat._id.toString(),
-      }));
-
-    //          if (mainCategoryWithSubcategories && Array.isArray(mainCategoryWithSubcategories.subcategories)) {
-    //   mainCategoryWithSubcategories.subcategories.forEach(subcategory => {
-    //     console.log('Subcategory ID:', subcategory._id, 'Type of _id:', typeof subcategory._id);
-    //   });
-    // } else {
-    //   console.log('Nema podkategorija ili objekat nije definisan');
-    // }
-
+    // console.log(retrensSubcategories);
     res
       .status(200)
       .json(
-        createSuccessJson(
-          "BE_get_main_category_subcategories_success",
-          mainCategoryWithSubcategories
+        createSuccessJson<CategoryWithPopulatedSubs>(
+          "BE_subcategories_of_category_fetched_successfully",
+          retrensSubcategories
         )
       );
   } catch (error: any) {
@@ -260,10 +448,72 @@ export const getSubcategoriesOfMainCategory = async (
   }
 };
 
-export const updateCategory = [
-  validateRequestWithZod(updateCategorySchema),
+//get all subcategories of main category- Admin
+export const getSubcategoriesOfMainCategoryAdmin = async (
+  req: Request<{ categoryId: string }, {}, {}>,
+  res: Response<ApiResponse<CategoryWithPopulatedSubs>>
+) => {
+  try {
+    const categoryId = req.params.categoryId;
+
+    const mainCategoryWithSubcategories = await Category.findOne({
+      _id: categoryId,
+      isMainCategory: true,
+    })
+      .select(" -isMainCategory -createdAt -updatedAt -categoryImageUrl ")
+      .populate<{ subcategories: SubcategoriesInfo[] }>({
+        path: "subcategories",
+        select: "-createdAt -updatedAt -subcategories -isMainCategory",
+      })
+      .lean();
+
+    if (!mainCategoryWithSubcategories) {
+      res.status(404).json(
+        createErrorJson([
+          {
+            type: "get-subcategories",
+            msg: "BE_category_not_found",
+          },
+        ])
+      );
+      return;
+    }
+
+    const retrensSubcategories: CategoryWithPopulatedSubs = {
+      ...mainCategoryWithSubcategories,
+      _id: mainCategoryWithSubcategories._id.toString(),
+      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
+        (sub) => ({
+          ...sub,
+          _id: sub._id.toString(),
+        })
+      ),
+    };
+
+    // console.log(retrensSubcategories);
+    res
+      .status(200)
+      .json(
+        createSuccessJson<CategoryWithPopulatedSubs>(
+          "BE_subcategories_of_category_fetched_successfully",
+          retrensSubcategories
+        )
+      );
+  } catch (error: any) {
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
+
+//Update main category
+export const updateMainCategory = [
+  validateRequestWithZod(updateMainCategoryBodySchema),
   async (
-    req: Request<{ categoryId: string }, {}, UpdateCategoryDto>,
+    req: Request<{ categoryId: string }, {}, UpdateMainCategoryDto>,
     res: Response<ApiResponse<null>>
   ) => {
     try {
@@ -273,23 +523,43 @@ export const updateCategory = [
         res
           .status(400)
           .json(
-            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+            createErrorJson([
+              { type: "categoryUpdate", msg: "category_not_exist" },
+            ])
           );
         return;
       }
 
-      category.name = req.body.name;
-      category.description = req.body.description;
-      category.isMainCategory = req.body.isMainCategory;
-      category.subcategories = req.body.subcategories
-        ? req.body.subcategories
-        : category.subcategories;
+      const categoryWithSameName = await Category.findOne({
+        name: req.body.name,
+        _id: { $ne: category._id },
+      });
+
+      if (categoryWithSameName) {
+        res.status(400).json(
+          createErrorJson([
+            {
+              type: "categoryUpdate",
+              msg: "category_with_this_name_alredy_exsist",
+            },
+          ])
+        );
+        return;
+      }
+
+      category.name = req.body.name ? req.body.name : category.name;
+      category.description = req.body.description
+        ? req.body.description
+        : category.description;
+      category.isActive = req.body.isActive
+        ? req.body.isActive
+        : category.isActive;
 
       await category.save();
 
       res
         .status(200)
-        .json(createSuccessJson("BE_category_updated_successfully", null));
+        .json(createSuccessJson("BE_main_category_updated_successfully", null));
     } catch (error: any) {
       console.error(error);
       res
@@ -301,6 +571,54 @@ export const updateCategory = [
   },
 ];
 
+//Update main category
+export const updateSubcategory = [
+  validateRequestWithZod(updateSubcategoryBodySchema),
+  async (
+    req: Request<{ subcategoryId: string }, {}, UpdateMainCategoryDto>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const subcategory = await Category.findOne({
+        _id: req.params.subcategoryId,
+      });
+
+      if (!subcategory) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "categoryUpdate", msg: "subcategory_not_exist" },
+            ])
+          );
+        return;
+      }
+
+      subcategory.name = req.body.name ? req.body.name : subcategory.name;
+      subcategory.description = req.body.description
+        ? req.body.description
+        : subcategory.description;
+      subcategory.isActive = req.body.isActive
+        ? req.body.isActive
+        : subcategory.isActive;
+
+      await subcategory.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_subcategory_updated_successfully", null));
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+    }
+  },
+];
+
+//Update cateogry and subcategory img
 export const updateCategoryImage = [
   uploadFiles(uploadOptions),
 
@@ -312,15 +630,22 @@ export const updateCategoryImage = [
       const category = await Category.findOne({ _id: req.params.categoryId });
       const files = req.files as Express.Multer.File[];
 
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "image_not_sended" }])
+          );
+      }
+
       if (!category) {
-        if (files?.length) {
-          try {
-            await fs.promises.unlink(files[0].path);
-            console.log("Uploaded file deleted due to invalid categoryId");
-          } catch (err) {
-            console.error("Failed to delete uploaded file:", err);
-          }
+        try {
+          await fs.promises.unlink(files[0].path);
+          console.log("Uploaded file deleted due to invalid categoryId");
+        } catch (err) {
+          console.error("Failed to delete uploaded file:", err);
         }
+
         res
           .status(400)
           .json(
@@ -332,15 +657,13 @@ export const updateCategoryImage = [
       const oldImagePath = category.categoryImageUrl;
       let newPath = oldImagePath;
 
-      if (files?.length) {
-        const firstFile = files[0];
-        const relativeFilePath = path
-          .relative("uploads", firstFile.path)
-          .replace(/\\/g, "/");
+      const firstFile = files[0];
+      const relativeFilePath = path
+        .relative("uploads", firstFile.path)
+        .replace(/\\/g, "/");
 
-        newPath = relativeFilePath;
-        category.categoryImageUrl = newPath;
-      }
+      newPath = relativeFilePath;
+      category.categoryImageUrl = newPath;
 
       if (oldImagePath && oldImagePath !== newPath) {
         const fullOldPath = path.join("uploads", oldImagePath);
@@ -372,7 +695,7 @@ export const updateCategoryImage = [
 
 export const getCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<categoryDto>>
+  res: Response<ApiResponse<CategoryDto>>
 ) => {
   try {
     const category = await Category.findOne({
@@ -415,7 +738,7 @@ export const deleteCategory = async (
   res: Response<ApiResponse<null>>
 ) => {
   try {
-    const category = await Category.findOneAndDelete({
+    const category = await Category.findOne({
       _id: req.params.categoryId,
     });
 
@@ -427,6 +750,15 @@ export const deleteCategory = async (
         );
       return;
     }
+
+    category.isActive = false;
+
+    await Category.updateMany(
+      { _id: { $in: category.subcategories } },
+      { isActive: false }
+    );
+
+    await category.save();
 
     res
       .status(200)

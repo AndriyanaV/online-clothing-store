@@ -23,11 +23,11 @@ import authMiddleware from "../middleware/authMiddleware";
 // };
 
 export const changdeRoleToAdmin = async (
-  req: Request<{ id: string }>,
+  req: Request<{ userId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
 ) => {
   try {
-    const user = await User.findOne({ _id: req.userId });
+    const user = await User.findOne({ _id: req.params.userId });
 
     if (!user) {
       res
@@ -77,9 +77,6 @@ export const updateUser = [
 
       const { firstName, lastName } = req.body;
 
-      //    user.firstName= firstName? firstName : user.firstName;
-
-      //Azuriramo first name i last name jedino ako je korinsik poslao neku vrednost
       if (firstName !== undefined) user.firstName = firstName;
       if (lastName !== undefined) user.lastName = lastName;
 
