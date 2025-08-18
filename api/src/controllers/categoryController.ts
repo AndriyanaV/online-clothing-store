@@ -22,6 +22,7 @@ import {
   SubcategoriesInfo,
   UpdateMainCategoryDto,
   AddSubcategoryDto,
+  UpdateSubcategoryDto,
 } from "../types/category";
 import { request } from "http";
 import mongoose from "mongoose";
@@ -373,11 +374,12 @@ export const getMainCategories = async (
       .status(201)
       .json(
         createSuccessJson<CategoryInfo[]>(
-          "BE_categories_fetch_successfully",
+          "BE_main_categories_fetched_successfully",
           categoriesWithStringId
         )
       );
   } catch (error: any) {
+    console.log("Error during fetching main categories:", error);
     res
       .status(500)
       .json(
@@ -439,6 +441,7 @@ export const getSubcategoriesOfMainCategory = async (
         )
       );
   } catch (error: any) {
+    console.log("Error during fetching subcategories:", error);
     res
       .status(500)
       .json(
@@ -448,7 +451,7 @@ export const getSubcategoriesOfMainCategory = async (
   }
 };
 
-//get all subcategories of main category- Admin
+//get all subcategories of main category- Admin see inactive also
 export const getSubcategoriesOfMainCategoryAdmin = async (
   req: Request<{ categoryId: string }, {}, {}>,
   res: Response<ApiResponse<CategoryWithPopulatedSubs>>
@@ -500,6 +503,7 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
         )
       );
   } catch (error: any) {
+    console.log("Error during fetching subcategories admin panel:", error);
     res
       .status(500)
       .json(
@@ -571,11 +575,11 @@ export const updateMainCategory = [
   },
 ];
 
-//Update main category
+//Update subcategory
 export const updateSubcategory = [
   validateRequestWithZod(updateSubcategoryBodySchema),
   async (
-    req: Request<{ subcategoryId: string }, {}, UpdateMainCategoryDto>,
+    req: Request<{ subcategoryId: string }, {}, UpdateSubcategoryDto>,
     res: Response<ApiResponse<null>>
   ) => {
     try {
@@ -608,7 +612,7 @@ export const updateSubcategory = [
         .status(200)
         .json(createSuccessJson("BE_subcategory_updated_successfully", null));
     } catch (error: any) {
-      console.error(error);
+      console.log(error);
       res
         .status(500)
         .json(
@@ -682,8 +686,9 @@ export const updateCategoryImage = [
         .json(
           createSuccessJson("BE_category_image_updated_successfully", null)
         );
+      return;
     } catch (error: any) {
-      console.error(error);
+      console.log(error);
       res
         .status(500)
         .json(
@@ -724,7 +729,7 @@ export const getCategory = async (
         createSuccessJson("BE_category_fetched_successfully", publicCategory)
       );
   } catch (error: any) {
-    console.error(error);
+    console.log(error);
     res
       .status(500)
       .json(
@@ -733,6 +738,7 @@ export const getCategory = async (
   }
 };
 
+//Not real delete
 export const deleteCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
