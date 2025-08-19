@@ -16,6 +16,7 @@ import {
   ProductBySku,
   ProductDto,
   ProductFilter,
+  ProductsResponseDto,
   ProductVariantAddedDto,
   ProductVariantDto,
   ProductVariantToAdd,
@@ -49,6 +50,7 @@ import {
 import { addProductTagBodySchema } from "../schemas/product/addProductTag";
 import { addVariationSizeBodySchema } from "../schemas/product/addVariationSizeSchema";
 import { deleteVariantFolder } from "../utils/deteteVariantFolder";
+import { parentPort } from "worker_threads";
 
 //Upload options
 let uploadOptions = {
@@ -1274,6 +1276,7 @@ export const deleteProductVariation = async (
   }
 };
 
+//Get product - filter options and pagination enable
 export const getAllproductsBySubcategoryWithFilters = async (
   req: Request<
     { subcategoryId: string },
@@ -1287,9 +1290,11 @@ export const getAllproductsBySubcategoryWithFilters = async (
       color: BaseColor | ExtendedColor;
       size: Size;
       sortOption: "asc" | "desc";
+      page: string;
+      limit: string;
     }
   >,
-  res: Response<ApiResponse<ProductDto[]>>
+  res: Response<ApiResponse<ProductsResponseDto>>
 ) => {
   try {
     const subcategory = await Category.findOne({
@@ -1349,21 +1354,50 @@ export const getAllproductsBySubcategoryWithFilters = async (
       ...variationFilter,
     };
 
-    const products = await Product.find({
-      subcategory: req.params.subcategoryId,
-      variations: { $exists: true, $not: { $size: 0 } },
-      ...productFilter,
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        match: variationMatch,
-        select: "-createdAt -updatedAt",
-      })
-      .sort(sortQuery)
-      .lean();
+    //Pagination settings
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-    const productsDto: ProductDto[] = products.map((p) => ({
+    const result = await Product.aggregate([
+      {
+        $match: {
+          subcategory: req.params.subcategoryId,
+          variations: { $exists: true, $not: { $size: 0 } },
+          ...productFilter,
+        },
+      },
+      {
+        $sort: sortQuery, // sort pre facet-a
+      },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                createdAt: 0,
+                updatedAt: 0,
+              },
+            },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ]);
+
+    const products = result[0].data;
+    const total = result[0].totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limit);
+
+    await Product.populate(products, {
+      path: "variations",
+      match: variationMatch,
+      select: "-createdAt -updatedAt",
+    });
+
+    const productsDto: ProductDto[] = products.map((p: any) => ({
       ...p,
       _id: p._id.toString(),
       category: p.category.toString(),
@@ -1381,10 +1415,20 @@ export const getAllproductsBySubcategoryWithFilters = async (
       })),
     }));
 
+    const productResponseDto: ProductsResponseDto = {
+      page: page,
+      total: total,
+      totalPages: totalPages,
+      products: productsDto,
+    };
+
     res
       .status(200)
       .json(
-        createSuccessJson("BE_products_of_subcategories_success", productsDto)
+        createSuccessJson(
+          "BE_products_of_subcategories_success",
+          productResponseDto
+        )
       );
   } catch (error: any) {
     console.log(error);

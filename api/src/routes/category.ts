@@ -1,5 +1,6 @@
 import express, { Router } from "express";
 import {
+  addMainCategoryInfo,
   deleteCategory,
   getCategory,
   getMainCategories,
@@ -8,6 +9,8 @@ import {
 } from "../controllers/categoryController";
 
 const categoryRouter = express.Router();
+
+categoryRouter.post("/addMainCategoryInfo", addMainCategoryInfo);
 
 // categoryRouter.post('/addCategory',addCategory);
 categoryRouter.get("/getMainCategories", getMainCategories);
