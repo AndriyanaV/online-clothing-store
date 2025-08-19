@@ -130,3 +130,10 @@ export interface VariationFilter {
   color?: BaseColor | ExtendedColor;
   sizes?: Object;
 }
+
+export interface ProductsResponseDto {
+  page: number;
+  totalPages: number;
+  total: number;
+  products: ProductDto[];
+}
