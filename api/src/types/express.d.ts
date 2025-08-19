@@ -11,6 +11,7 @@ declare global {
         productName?: string;
         cateogory_name?: string;
         subcategory_name?: string;
+        userId?: string;
       };
     }
   }

@@ -1286,6 +1286,7 @@ export const getAllproductsBySubcategoryWithFilters = async (
       maxPrice: number;
       color: BaseColor | ExtendedColor;
       size: Size;
+      sortOption: "asc" | "desc";
     }
   >,
   res: Response<ApiResponse<ProductDto[]>>
@@ -1307,8 +1308,15 @@ export const getAllproductsBySubcategoryWithFilters = async (
       return;
     }
 
-    const { material, discountPrice, minPrice, maxPrice, color, size } =
-      req.query;
+    const {
+      material,
+      discountPrice,
+      minPrice,
+      maxPrice,
+      color,
+      size,
+      sortOption,
+    } = req.query;
 
     let productFilter: ProductFilter = {};
     let variationFilter: VariationFilter = {};
@@ -1327,6 +1335,15 @@ export const getAllproductsBySubcategoryWithFilters = async (
     if (color) variationFilter.color = color;
     if (size) variationFilter.sizes = { $elemMatch: { size } };
 
+    let sortQuery: any = {};
+    if (req.query.sortOption === "asc") {
+      sortQuery = req.query.discountPrice ? { discountPrice: 1 } : { price: 1 };
+    } else if (req.query.sortOption === "desc") {
+      sortQuery = req.query.discountPrice
+        ? { discountPrice: -1 }
+        : { price: -1 };
+    }
+
     const variationMatch = {
       images: { $exists: true, $ne: [] },
       ...variationFilter,
@@ -1343,6 +1360,7 @@ export const getAllproductsBySubcategoryWithFilters = async (
         match: variationMatch,
         select: "-createdAt -updatedAt",
       })
+      .sort(sortQuery)
       .lean();
 
     const productsDto: ProductDto[] = products.map((p) => ({

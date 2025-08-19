@@ -19,6 +19,10 @@ const UserSchema = new Schema<User>(
       enum: Object.values(role),
       default: role.user,
     },
+    verificationToken: { type: String },
+    verificationTokenExpires: { type: Date },
+    verifiedEmail: { type: Boolean, default: false },
+    resetPasswordToken: { type: String },
   },
   { timestamps: true }
 );
