@@ -16,5 +16,6 @@ export const updateProductVariantInfoBodySchema: z.ZodType<ProductVariantToUpdat
   z
     .object({
       sizes: z.array(SizeInfoToUpdateSchema).nonempty(),
+      isActive: z.boolean().optional(),
     })
     .strict();

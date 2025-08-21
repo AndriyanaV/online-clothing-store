@@ -19,7 +19,9 @@ export const addProductBasicInfoBodySchema: z.ZodType<ProductBasicInfoToAddDto> 
       description: z.string().min(1, "Description is required"),
       material: z.nativeEnum(Material),
       category: z.string().regex(objectIdRegex, "Invalid ObjectId format"),
-      subcategory: z.string().regex(objectIdRegex, "Invalid ObjectId format"),
+      subcategory: z.array(
+        z.string().regex(objectIdRegex, "Invalid ObjectId format")
+      ),
       careInstructions: z.nativeEnum(CareInstructions),
       countryBrand: z.nativeEnum(CountryBrand),
       price: z.number().positive("Price must be positive"),
@@ -30,5 +32,6 @@ export const addProductBasicInfoBodySchema: z.ZodType<ProductBasicInfoToAddDto> 
         .default(0),
       modelCode: z.string().min(1).max(30),
       productTag: z.array(z.nativeEnum(ProductTag)).optional().default([]),
+      isActive: z.boolean(),
     })
     .strict();

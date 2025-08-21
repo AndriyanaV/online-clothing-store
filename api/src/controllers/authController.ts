@@ -23,7 +23,7 @@ import {
   jwtResetPasswordExpiresInTime,
 } from "../constants/common";
 import { loginSchemaRules } from "../schemas/auth/logiinRequest";
-import { role } from "../constants/user";
+import { UserRole } from "../constants/user";
 import { randomUUID } from "crypto";
 import { sendEmail } from "../services/externals/emailService";
 import { verifyEmailBodySchema } from "../schemas/auth/VerifyEmailBody";
@@ -70,8 +70,8 @@ export const register = [
         email,
         password: hashedPassword,
         firstName: req.body.firstName ? req.body.firstName : "",
-        lastName: req.body.lastName ? req.body.firstName : "",
-        role: role.user,
+        lastName: req.body.lastName ? req.body.lastName : "",
+        role: UserRole.user,
         verificationToken: verificationToken,
         verificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
         verifiedEmail: false,
@@ -111,7 +111,15 @@ export const register = [
 
       const userId = newUser._id.toString();
 
-      const { password: _, _id: s, ...addedUser } = newUser.toObject();
+      const {
+        password: _,
+        _id: s,
+        verificationToken: vt,
+        verificationTokenExpires: vte,
+        role: r,
+        verifiedEmail: ve,
+        ...addedUser
+      } = newUser.toObject();
 
       const publicUser = {
         _id: userId,
@@ -205,6 +213,15 @@ export const login = [
         return;
       }
 
+      if (!user.verifiedEmail) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "login", msg: "BE_verify_your_account" }])
+          );
+        return;
+      }
+
       const isMatch = await bcrypt.compare(password, user.password);
 
       if (!isMatch) {
@@ -220,7 +237,16 @@ export const login = [
 
       const userId = user._id.toString();
 
-      const { password: _, _id: __v, ...rest } = user.toObject();
+      const {
+        password: _,
+        _id: __v,
+        verificationToken: vt,
+        verificationTokenExpires: vte,
+        role: r,
+        verifiedEmail: ve,
+        resetPasswordToken: rpt,
+        ...rest
+      } = user.toObject();
 
       const publicUser = { _id: userId, ...rest };
 
@@ -411,7 +437,7 @@ export const resetPasswordRequest = async (
                 </a>
             </p>
             <p>If you did not request this, please ignore this email.</p>
-            <p>Best regards/p>
+            <p>Best regards</p>
             `;
     await sendEmail(email, "Reset password", "", emailBody);
 

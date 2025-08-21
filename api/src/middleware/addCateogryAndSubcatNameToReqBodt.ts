@@ -29,6 +29,7 @@ const addCateogryAndSubcatNameToReqBody = [
       const subcategory = await Category.findOne({
         _id: req.params.subcategoryId,
         isMainCategory: false,
+        parentCategory: req.params.categoryId,
       });
 
       if (!subcategory) {

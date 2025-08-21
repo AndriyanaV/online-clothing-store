@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { User } from "../types/user";
-import { role } from "../constants/user";
+import { UserRole } from "../constants/user";
 
 const Schema = mongoose.Schema;
 
@@ -16,8 +16,8 @@ const UserSchema = new Schema<User>(
     lastName: { type: String, default: "" },
     role: {
       type: String,
-      enum: Object.values(role),
-      default: role.user,
+      enum: Object.values(UserRole),
+      default: UserRole.user,
     },
     verificationToken: { type: String },
     verificationTokenExpires: { type: Date },
