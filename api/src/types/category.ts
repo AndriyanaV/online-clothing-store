@@ -8,6 +8,7 @@ export interface Category {
   description: string;
   categoryImageUrl: string;
   isActive: boolean;
+  parentCategory?: Types.ObjectId | null;
 }
 
 export interface SubCategory {
@@ -63,13 +64,21 @@ export interface UpdateSubcategoryDto
 export interface AddMainCategoryDto
   extends Omit<
     Category,
-    "_id" | "categoryImageUrl" | "isMainCategory" | "subcategories"
+    | "_id"
+    | "categoryImageUrl"
+    | "isMainCategory"
+    | "subcategories"
+    | "parentCategory"
   > {}
 
 export interface AddSubcategoryDto
   extends Omit<
     Category,
-    "_id" | "categoryImageUrl" | "isMainCategory" | "subcategories"
+    | "_id"
+    | "categoryImageUrl"
+    | "isMainCategory"
+    | "subcategories"
+    | "parentCategory"
   > {}
 
 export interface AddedCategoryInfo extends Pick<CategoryDto, "_id" | "name"> {}

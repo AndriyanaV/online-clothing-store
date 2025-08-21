@@ -16,6 +16,11 @@ const CategorySchema = new Schema<Category>(
     ],
     categoryImageUrl: { type: String },
     isActive: { type: Boolean, default: true },
+    parentCategory: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: CATEGORY_KEY,
+      default: null,
+    },
   },
   { timestamps: true }
 );

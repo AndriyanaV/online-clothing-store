@@ -3,10 +3,15 @@ import { Request, Response } from "express";
 import { ApiResponse } from "../types/common";
 import { User, USER_KEY } from "../models/user";
 import { createErrorJson, createSuccessJson } from "../utils/responseWrapper";
-import { role } from "../constants/user";
+import { UserRole } from "../constants/user";
 import { validateRequestWithZod } from "../middleware/validateRequestMiddleware";
 import { updateUserBodySchema } from "../schemas/user/updateUser";
-import { PublicUser, UpdateUserBody, UserInfo } from "../types/user";
+import {
+  filterRole,
+  PublicUser,
+  UpdateUserBody,
+  UserInfo,
+} from "../types/user";
 import { userInfo } from "os";
 import authMiddleware from "../middleware/authMiddleware";
 
@@ -38,7 +43,7 @@ export const changdeRoleToAdmin = async (
       return;
     }
 
-    user.role = role.admin;
+    user.role = UserRole.admin;
 
     await user.save();
 
@@ -103,8 +108,17 @@ export const getAllUsers = async (
   res: Response<ApiResponse<PublicUser[]>>
 ) => {
   try {
-    const users = await User.find()
-      .select("-password -createdAt -updatedAt")
+    const { role } = req.query;
+
+    const filter: filterRole = {};
+    if (role && Object.values(UserRole).includes(role as UserRole)) {
+      filter.role = role as UserRole;
+    }
+
+    const users = await User.find(filter)
+      .select(
+        "-password -createdAt -updatedAt -verificationToken -verificationTokenExpires -resetPasswordToken -verifiedEmail "
+      )
       .lean();
 
     const usersWithStringId = users.map((user) => ({
@@ -113,7 +127,7 @@ export const getAllUsers = async (
     }));
 
     res
-      .status(20)
+      .status(200)
       .json(createSuccessJson("BE_users_get_successfully", usersWithStringId));
     return;
   } catch (error: any) {
@@ -133,7 +147,7 @@ export const getUser = async (
 ) => {
   try {
     const user = await User.findOne({ _id: req.params.userId }).select(
-      "-password"
+      "-password -createdAt -updatedAt -verificationToken -verificationTokenExpires -resetPasswordToken -verifiedEmail"
     );
 
     if (!user) {

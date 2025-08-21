@@ -5,8 +5,6 @@ import {
   addProductVariationPics,
   addTagsToProduct,
   addVariationSize,
-  deleteProduct,
-  deleteProductVariation,
   getAllproductsBySubcategory,
   getAllproductsBySubcategoryAdmin,
   getAllproductsBySubcategoryWithFilters,
@@ -16,6 +14,7 @@ import {
   getProductVariantBySku,
   getProductWithAllVariations,
   returnavailableTagsForProduct,
+  softDeleteProduct,
   updateProductBasicInfo,
   updateProductVariantInfo,
   updateProductVariationPics,
@@ -79,9 +78,5 @@ productRouter.get(
   getAllproductsBySubcategoryWithFilters
 );
 
-// Delete Routes
-productRouter.delete("/deleteProduct/:productId", deleteProduct);
-productRouter.delete(
-  "/deleteProductVariation/variationId",
-  deleteProductVariation
-);
+// Soft Delete Product
+productRouter.patch("/softDeleteProduct/:productId", softDeleteProduct);

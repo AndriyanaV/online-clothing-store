@@ -35,7 +35,7 @@ export const getFullUploadPath = (
         const subcategoryName = req.customData.subcategory_name
           .toString()
           .replace(/\s+/g, "_");
-        fullPath = path.join(fullPath, categoryName, subcategoryName);
+        fullPath = path.join(fullPath, subcategoryName);
       }
     }
 

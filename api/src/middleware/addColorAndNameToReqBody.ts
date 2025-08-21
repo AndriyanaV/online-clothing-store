@@ -13,7 +13,10 @@ const addColorAndNameToReqBody = [
     next: NextFunction
   ) => {
     try {
-      const variation = await ProductVariant.findById(req.params.variationId);
+      const variation = await ProductVariant.findOne({
+        _id: req.params.variationId,
+        product_id: req.params.productId,
+      });
 
       if (!variation) {
         res

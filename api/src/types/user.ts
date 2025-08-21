@@ -1,12 +1,12 @@
 import { ObjectId } from "mongodb";
-import { role } from "../constants/user";
+import { UserRole } from "../constants/user";
 
 export interface User {
   email: string;
   password: string;
   firstName?: string;
   lastName?: string;
-  role?: role;
+  role?: UserRole;
   // Token which using for email verification
   verificationToken?: string;
   verificationTokenExpires: Date;
@@ -38,9 +38,28 @@ export interface UpdateUserBody
   extends Partial<Pick<User, "firstName" | "lastName">> {}
 
 // Same as IUser but without password
-export interface IUserPublic extends Omit<UserDto, "password"> {}
+export interface IUserPublic
+  extends Omit<
+    UserDto,
+    | "password"
+    | "role"
+    | "verificationToken"
+    | "verificationTokenExpires"
+    | "verifiedEmail"
+    | "resetPasswordToken"
+  > {}
 
 export type PublicUser = Omit<
   UserDto,
-  "password" | "createdAt" | "updatedAt" | "verifiedEmail" | "verificationToken"
+  | "password"
+  | "createdAt"
+  | "updatedAt"
+  | "verifiedEmail"
+  | "verificationToken"
+  | "verificationTokenExpires"
+  | "resetPasswordToken"
 >;
+
+export interface filterRole {
+  role?: UserRole;
+}

@@ -98,12 +98,15 @@ export const addProductBasicInfo = [
         return;
       }
 
-      const subcategory = await Category.findOne({
-        _id: req.body.subcategory,
+      const subcateogryIds = req.body.subcategory;
+
+      const subcategory = await Category.find({
+        _id: { $in: subcateogryIds },
         isMainCategory: false,
+        parentCategory: req.body.category,
       });
 
-      if (!subcategory) {
+      if (!subcategory || subcategory.length !== subcateogryIds.length) {
         res
           .status(400)
           .json(
@@ -123,10 +126,11 @@ export const addProductBasicInfo = [
         careInstructions: req.body.careInstructions,
         countryBrand: req.body.countryBrand,
         price: req.body.price,
-        discountPrice: req.body.discountPrice ? req.body.discountPrice : 0,
+        discountPrice: req.body.discountPrice ? req.body.discountPrice : null,
         modelCode: req.body.modelCode,
         productTag: req.body.productTag,
         variations: [],
+        isActive: req.body.isActive,
       });
 
       await newProduct.save();
@@ -210,6 +214,7 @@ export const addProductVariationInfo = [
         product_id: req.body.product_id,
         color: req.body.color,
         images: [],
+        isActive: req.body.isActive,
         sizes: sizesWithSKU,
       });
 
@@ -259,6 +264,16 @@ export const addProductVariationPics = [
     res: Response<ApiResponse<null>>
   ) => {
     try {
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+          );
+        return;
+      }
       const variation = await ProductVariant.findOne({
         _id: req.params.variationId,
       });
@@ -283,17 +298,6 @@ export const addProductVariationPics = [
           .status(400)
           .json(
             createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
-          );
-        return;
-      }
-
-      const files = req.files as Express.Multer.File[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "BE_image_not_send" }])
           );
         return;
       }
@@ -348,6 +352,7 @@ export const addVariationSize = [
 
       const variation = await ProductVariant.findOne({
         _id: req.params.variationId,
+        product_id: req.params.productId,
       });
 
       if (!variation) {
@@ -436,7 +441,7 @@ export const updateProductBasicInfo = [
         ? req.body.material
         : product.material;
       product.subcategory = req.body.subcategory
-        ? new mongoose.Types.ObjectId(req.body.subcategory)
+        ? req.body.subcategory.map((id) => new mongoose.Types.ObjectId(id))
         : product.subcategory;
       product.careInstructions = req.body.careInstructions
         ? req.body.careInstructions
@@ -451,6 +456,9 @@ export const updateProductBasicInfo = [
       product.productTag = req.body.productTag
         ? req.body.productTag
         : product.productTag;
+      product.isActive = req.body.isActive
+        ? req.body.isActive
+        : product.isActive;
 
       await product.save();
 
@@ -511,10 +519,15 @@ export const updateProductVariantInfo = [
           : existingSize;
       });
 
+      const isActiveUpdate = req.body.isActive
+        ? req.body.isActive
+        : variant.isActive;
+
       const updatedVariant = await ProductVariant.findByIdAndUpdate(
         req.params.variantId,
         {
           sizes: updatedSizes,
+          isActive: isActiveUpdate,
         },
         { new: true, runValidators: true }
       );
@@ -544,12 +557,24 @@ export const updateProductVariationPics = [
   uploadFiles(uploadOptions),
 
   async (
-    req: Request<{ variationId: string }, {}>,
+    req: Request<{ variationId: string; productId: string }, {}>,
     res: Response<ApiResponse<null>>
   ) => {
     try {
+      const files = req.files as Express.Multer.File[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "image_not_sended" }])
+          );
+        return;
+      }
+
       const variation = await ProductVariant.findOne({
-        _id: new Types.ObjectId(req.params.variationId),
+        _id: req.params.variationId,
+        product_id: req.params.productId,
       });
 
       if (!variation) {
@@ -560,15 +585,6 @@ export const updateProductVariationPics = [
               { type: "addCategory", msg: "BE_variation_not_found" },
             ])
           );
-        return;
-      }
-
-      const files = req.files as Express.Multer.File[];
-
-      if (files.length === 0 && !files) {
-        res
-          .status(400)
-          .json(createErrorJson([{ type: "general", msg: "No_image" }]));
         return;
       }
 
@@ -616,6 +632,7 @@ export const updateProductVariationPics = [
 //Read
 
 //get all products by subcategory - for users
+//Products without any variants with images are treated as drafts and are not shown to the user.
 export const getAllproductsBySubcategory = async (
   req: Request<{ subcategoryId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto[]>>
@@ -637,17 +654,33 @@ export const getAllproductsBySubcategory = async (
       return;
     }
 
-    const products = await Product.find({
-      subcategory: req.params.subcategoryId,
-      variations: { $exists: true, $not: { $size: 0 } },
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        match: { images: { $exists: true, $ne: [] } },
-        select: "-createdAt -updatedAt",
-      })
-      .lean();
+    const products = await Product.aggregate([
+      {
+        $match: {
+          subcategory: new mongoose.Types.ObjectId(req.params.subcategoryId),
+          isActive: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "productvariants",
+          localField: "variations",
+          foreignField: "_id",
+          as: "variations",
+          pipeline: [
+            {
+              $match: {
+                images: { $exists: true, $ne: [] },
+                isActive: true, // dodaje filtriranje po vidljivosti varijante
+              },
+            },
+          ],
+        },
+      },
+      {
+        $match: { "variations.0": { $exists: true } }, // zadrži samo proizvode koji imaju bar 1 variant sa slikama
+      },
+    ]);
 
     const productsDto: ProductDto[] = products.map((p) => ({
       ...p,
@@ -681,33 +714,22 @@ export const getAllproductsBySubcategory = async (
 };
 
 //get product - for users
+//Variants without images are treated as drafts and are not sent to the user.
 export const getProduct = async (
   req: Request<{ productId: string }, {}, {}>,
   res: Response<ApiResponse<ProductDto>>
 ) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.productId,
-    });
-
-    if (!product) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_product_not_exsist" },
-          ])
-        );
-      return;
-    }
-
     const returnedProduct = await Product.findOne({
       _id: req.params.productId,
     })
       .select("-createdAt -updatedAt")
       .populate({
         path: "variations",
-        match: { images: { $exists: true, $ne: [] } },
+        match: {
+          images: { $exists: true, $ne: [] },
+          isActive: true, // filtrira samo aktivne varijante
+        },
         select: "-createdAt -updatedAt",
       })
       .lean();
@@ -898,62 +920,77 @@ export const addTagsToProduct = [
 ];
 
 // Get products by tag (useful for pages with highlighted tag)
-export const getProductsByTag = async (
-  req: Request<{ tag: ProductTag }, {}, {}>,
-  res: Response<ApiResponse<ProductDto[]>>
-) => {
-  try {
-    const productsToFind = await Product.find({
-      productTag: req.params.tag,
-      variations: { $exists: true, $not: { $size: 0 } },
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        match: { images: { $exists: true, $ne: [] } },
-        select: "-createdAt -updatedAt",
-      })
-      .lean();
+// export const getProductsByTag = async (
+//   req: Request<{ tag: ProductTag }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto[]>>
+// ) => {
+//   try {
+//     const productsToFind = await Product.aggregate([
+//       {
+//         $match: {
+//           productTag: req.params.tag,
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "productvariants",
+//           localField: "variations",
+//           foreignField: "_id",
+//           as: "variations",
+//           pipeline: [
+//             {
+//               $match: {
+//                 images: { $exists: true, $ne: [] },
+//                 isActive: true, // dodaje filtriranje po vidljivosti
+//               },
+//             },
+//           ],
+//         },
+//       },
+//       {
+//         $match: { "variations.0": { $exists: true } }, // zadrži samo proizvode koji imaju bar 1 variant sa slikama
+//       },
+//     ]);
 
-    if (!productsToFind) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_products_not_exsist" },
-          ])
-        );
-      return;
-    }
+//     if (!productsToFind) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_products_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
 
-    const productsDto: ProductDto[] = productsToFind.map((p) => ({
-      ...p,
-      _id: p._id.toString(),
-      category: p.category.toString(),
-      subcategory: p.subcategory.toString(),
-      variations: p.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
-    }));
+//     const productsDto: ProductDto[] = productsToFind.map((p) => ({
+//       ...p,
+//       _id: p._id.toString(),
+//       category: p.category.toString(),
+//       subcategory: p.subcategory.toString(),
+//       variations: p.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     }));
 
-    res
-      .status(200)
-      .json(createSuccessJson("BE_get_products_by_tag_success", productsDto));
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
+//     res
+//       .status(200)
+//       .json(createSuccessJson("BE_get_products_by_tag_success", productsDto));
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
 
 //Get product with all variations- for admin panel
 export const getProductWithAllVariations = async (
@@ -961,21 +998,6 @@ export const getProductWithAllVariations = async (
   res: Response<ApiResponse<ProductDto>>
 ) => {
   try {
-    const product = await Product.findOne({
-      _id: req.params.productId,
-    });
-
-    if (!product) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_product_not_exsist" },
-          ])
-        );
-      return;
-    }
-
     const returnedProduct = await Product.findOne({
       _id: req.params.productId,
     })
@@ -1139,134 +1161,169 @@ export const getAvailableColorsForProductVariationasync = async (
 };
 
 //Delete
-
+//use soft delete instead of this
 //Delete product and variants
-export const deleteProduct = async (
+// export const deleteProduct = async (
+//   req: Request<{ productId: string }, {}, {}>,
+//   res: Response<ApiResponse<null>>
+// ) => {
+//   try {
+//     const productToDelete = await Product.findOneAndDelete({
+//       _id: req.params.productId,
+//     });
+
+//     if (!productToDelete) {
+//       res
+//         .status(404)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_product_not_found" }])
+//         );
+//       return;
+//     }
+
+//     const variants = await ProductVariant.find({
+//       product_id: req.params.productId,
+//     });
+
+//     if (variants.length === 0) {
+//       console.log("No variants for product:", req.params.productId);
+//       return;
+//     }
+
+//     for (const variant of variants) {
+//       if (variant.images && variant.images.length > 0) {
+//         await Promise.all(
+//           variant.images.map(async (imagePath) => {
+//             const fullPath = path.join("uploads", imagePath);
+//             try {
+//               await fs.promises.unlink(fullPath);
+//               console.log("Deleted image:", fullPath);
+//             } catch (err) {
+//               console.error("Failed to delete image:", err);
+//             }
+//           })
+//         );
+//       }
+
+//       if (productToDelete.name && variant.color) {
+//         try {
+//           await deleteVariantFolder(productToDelete.name, variant.color);
+//           console.log(`Deleted folder for variant color: ${variant.color}`);
+//         } catch (err) {
+//           console.error(
+//             `Failed to delete folder for variant color ${variant.color}:`,
+//             err
+//           );
+//         }
+//       }
+//     }
+
+//     const variantsToDelete = await ProductVariant.deleteMany({
+//       product_id: req.params.productId,
+//     });
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
+
+// //Delete product variant
+// export const deleteProductVariation = async (
+//   req: Request<{ variationId: string }, {}, {}>,
+//   res: Response<ApiResponse<null>>
+// ) => {
+//   try {
+//     const variantToDelete = await ProductVariant.findOneAndDelete({
+//       _id: req.params.variationId,
+//     });
+
+//     if (!variantToDelete) {
+//       res
+//         .status(404)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_varinant_not_found" }])
+//         );
+//       return;
+//     }
+
+//     const product = await Product.findOne({ _id: variantToDelete.product_id });
+
+//     if (!product) {
+//       res
+//         .status(404)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_varinant_not_found" }])
+//         );
+//       return;
+//     }
+
+//     if (variantToDelete.images && variantToDelete.images.length > 0) {
+//       await Promise.all(
+//         variantToDelete.images.map(async (imagePath) => {
+//           const fullPath = path.join("uploads", imagePath);
+//           try {
+//             await fs.promises.unlink(fullPath);
+//             console.log("Deleted image:", fullPath);
+//           } catch (err) {
+//             console.error("Failed to delete image:", err);
+//           }
+//         })
+//       );
+//     }
+
+//     if (product.name && variantToDelete.color) {
+//       try {
+//         await deleteVariantFolder(product.name, variantToDelete.color);
+//         console.log(
+//           `Deleted folder for variant color: ${variantToDelete.color}`
+//         );
+//       } catch (err) {
+//         console.error(
+//           `Failed to delete folder for variant color ${variantToDelete.color}:`,
+//           err
+//         );
+//       }
+//     }
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
+
+export const softDeleteProduct = async (
   req: Request<{ productId: string }, {}, {}>,
-  res: Response<ApiResponse<null>>
+  res: Response
 ) => {
   try {
-    const productToDelete = await Product.findOneAndDelete({
-      _id: req.params.productId,
-    });
+    const { productId } = req.params;
 
-    if (!productToDelete) {
-      res
-        .status(404)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_product_not_found" }])
-        );
-      return;
-    }
-
-    const variants = await ProductVariant.find({
-      product_id: req.params.productId,
-    });
-
-    if (variants.length === 0) {
-      console.log("No variants for product:", req.params.productId);
-      return;
-    }
-
-    for (const variant of variants) {
-      if (variant.images && variant.images.length > 0) {
-        await Promise.all(
-          variant.images.map(async (imagePath) => {
-            const fullPath = path.join("uploads", imagePath);
-            try {
-              await fs.promises.unlink(fullPath);
-              console.log("Deleted image:", fullPath);
-            } catch (err) {
-              console.error("Failed to delete image:", err);
-            }
-          })
-        );
-      }
-
-      if (productToDelete.name && variant.color) {
-        try {
-          await deleteVariantFolder(productToDelete.name, variant.color);
-          console.log(`Deleted folder for variant color: ${variant.color}`);
-        } catch (err) {
-          console.error(
-            `Failed to delete folder for variant color ${variant.color}:`,
-            err
-          );
-        }
-      }
-    }
-
-    const variantsToDelete = await ProductVariant.deleteMany({
-      product_id: req.params.productId,
-    });
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
-
-//Delete product variant
-export const deleteProductVariation = async (
-  req: Request<{ variationId: string }, {}, {}>,
-  res: Response<ApiResponse<null>>
-) => {
-  try {
-    const variantToDelete = await ProductVariant.findOneAndDelete({
-      _id: req.params.variationId,
-    });
-
-    if (!variantToDelete) {
-      res
-        .status(404)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_varinant_not_found" }])
-        );
-      return;
-    }
-
-    const product = await Product.findOne({ _id: variantToDelete.product_id });
-
+    const product = await Product.findById(productId);
     if (!product) {
       res
         .status(404)
         .json(
-          createErrorJson([{ type: "general", msg: "BE_varinant_not_found" }])
+          createErrorJson([{ type: "softDelete", msg: "BE_product_not_exist" }])
         );
       return;
     }
 
-    if (variantToDelete.images && variantToDelete.images.length > 0) {
-      await Promise.all(
-        variantToDelete.images.map(async (imagePath) => {
-          const fullPath = path.join("uploads", imagePath);
-          try {
-            await fs.promises.unlink(fullPath);
-            console.log("Deleted image:", fullPath);
-          } catch (err) {
-            console.error("Failed to delete image:", err);
-          }
-        })
-      );
-    }
+    product.isActive = false;
+    await product.save();
 
-    if (product.name && variantToDelete.color) {
-      try {
-        await deleteVariantFolder(product.name, variantToDelete.color);
-        console.log(
-          `Deleted folder for variant color: ${variantToDelete.color}`
-        );
-      } catch (err) {
-        console.error(
-          `Failed to delete folder for variant color ${variantToDelete.color}:`,
-          err
-        );
-      }
-    }
+    res
+      .status(200)
+      .json(createSuccessJson("BE_product_soft_deleted", { productId }));
+    return;
   } catch (error: any) {
+    console.error(error);
     res
       .status(500)
       .json(
@@ -1276,7 +1333,151 @@ export const deleteProductVariation = async (
   }
 };
 
-//Get product - filter options and pagination enable
+//Get product By Tag
+export const getProductsByTag = async (
+  req: Request<
+    { tag: ProductTag },
+    {},
+    {},
+    {
+      material?: Material;
+      discountPrice?: string;
+      minPrice?: string;
+      maxPrice?: string;
+      color?: BaseColor | ExtendedColor;
+      size?: Size;
+      sortOption?: "asc" | "desc";
+      page?: string;
+      limit?: string;
+    }
+  >,
+  res: Response<ApiResponse<ProductsResponseDto>>
+) => {
+  try {
+    const { tag } = req.params;
+    const {
+      color,
+      size,
+      sortOption,
+      maxPrice,
+      minPrice,
+      discountPrice,
+      material,
+    } = req.query;
+
+    // Parsiranje query parametara
+    const min = minPrice ? Number(minPrice) : undefined;
+    const max = maxPrice ? Number(maxPrice) : undefined;
+    const discount = discountPrice === "true";
+    const pageNum = parseInt(req.query.page || "1");
+    const limitNum = parseInt(req.query.limit || "30");
+    const skip = (pageNum - 1) * limitNum;
+
+    // Filters za product
+    let productFilter: any = {};
+    if (material) productFilter.material = material;
+    if (discount) productFilter.discountPrice = { $gt: 0 };
+    if (min && max) {
+      productFilter.price = { $gt: min, $lt: max };
+    } else if (min) {
+      productFilter.price = { $gt: min };
+    } else if (max) {
+      productFilter.price = { $lt: max };
+    }
+
+    // Filters za variation
+    const variationFilter: any = {
+      images: { $exists: true, $ne: [] },
+      isActive: true,
+    };
+    if (color) variationFilter.color = color;
+    if (size) {
+      variationFilter.sizes = { $elemMatch: { size } };
+    }
+
+    // Sort
+    let sortQuery: any = { createdAt: -1 };
+    if (sortOption === "asc") {
+      sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
+    } else if (sortOption === "desc") {
+      sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
+    }
+
+    // Agregacija
+    const pipeline: any[] = [
+      {
+        $match: {
+          productTag: tag,
+          isActive: true,
+          ...productFilter,
+        },
+      },
+      {
+        $lookup: {
+          from: "productvariants",
+          localField: "variations",
+          foreignField: "_id",
+          as: "variations",
+          pipeline: [{ $match: variationFilter }],
+        },
+      },
+      { $match: { "variations.0": { $exists: true } } },
+      { $sort: sortQuery },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limitNum },
+            { $project: { createdAt: 0, updatedAt: 0 } },
+          ],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await Product.aggregate(pipeline);
+    const products = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    const productsDto: ProductDto[] = products.map((p: any) => ({
+      ...p,
+      _id: p._id.toString(),
+      category: p.category.toString(),
+      subcategory: p.subcategory.toString(),
+      variations: p.variations.map((v: any) => ({
+        ...v,
+        _id: v._id.toString(),
+        sizes: v.sizes.map((s: any) => ({
+          ...s,
+          _id: s._id.toString(),
+          isAvailable: s.stock > 0,
+        })),
+      })),
+    }));
+
+    const productResponseDto: ProductsResponseDto = {
+      page: pageNum,
+      total,
+      totalPages,
+      products: productsDto,
+    };
+
+    res
+      .status(200)
+      .json(
+        createSuccessJson("BE_get_products_by_tag_success", productResponseDto)
+      );
+  } catch (error: any) {
+    console.error(error);
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+  }
+};
+
 export const getAllproductsBySubcategoryWithFilters = async (
   req: Request<
     { subcategoryId: string },
@@ -1284,14 +1485,14 @@ export const getAllproductsBySubcategoryWithFilters = async (
     {},
     {
       material?: Material;
-      discountPrice: boolean;
-      minPrice: number;
-      maxPrice: number;
-      color: BaseColor | ExtendedColor;
-      size: Size;
-      sortOption: "asc" | "desc";
-      page: string;
-      limit: string;
+      discountPrice?: string;
+      minPrice?: string;
+      maxPrice?: string;
+      color?: BaseColor | ExtendedColor;
+      size?: Size;
+      sortOption?: "asc" | "desc";
+      page?: string;
+      limit?: string;
     }
   >,
   res: Response<ApiResponse<ProductsResponseDto>>
@@ -1299,7 +1500,6 @@ export const getAllproductsBySubcategoryWithFilters = async (
   try {
     const subcategory = await Category.findOne({
       _id: req.params.subcategoryId,
-      isMainCategory: false,
     });
 
     if (!subcategory) {
@@ -1313,89 +1513,92 @@ export const getAllproductsBySubcategoryWithFilters = async (
       return;
     }
 
+    const { subcategoryId } = req.params;
     const {
-      material,
-      discountPrice,
-      minPrice,
-      maxPrice,
       color,
       size,
       sortOption,
+      maxPrice,
+      minPrice,
+      discountPrice,
+      material,
     } = req.query;
 
-    let productFilter: ProductFilter = {};
-    let variationFilter: VariationFilter = {};
+    // Parsiranje query parametara
+    const min = minPrice ? Number(minPrice) : undefined;
+    const max = maxPrice ? Number(maxPrice) : undefined;
+    const discount = discountPrice === "true";
+    const pageNum = parseInt(req.query.page || "1");
+    const limitNum = parseInt(req.query.limit || "30");
+    const skip = (pageNum - 1) * limitNum;
 
-    if (material) productFilter.material = material as Material;
-    if (discountPrice) productFilter.discountPrice = { $gt: 0 };
-
-    if (minPrice && maxPrice) {
-      productFilter.price = { $gt: minPrice, $lt: maxPrice };
-    } else if (minPrice) {
-      productFilter.price = { $gt: minPrice };
-    } else if (maxPrice) {
-      productFilter.price = { $lt: maxPrice };
+    // Filters za product
+    let productFilter: any = {};
+    if (material) productFilter.material = material;
+    if (discount) productFilter.discountPrice = { $gt: 0 };
+    if (min && max) {
+      productFilter.price = { $gt: min, $lt: max };
+    } else if (min) {
+      productFilter.price = { $gt: min };
+    } else if (max) {
+      productFilter.price = { $lt: max };
     }
 
-    if (color) variationFilter.color = color;
-    if (size) variationFilter.sizes = { $elemMatch: { size } };
-
-    let sortQuery: any = {};
-    if (req.query.sortOption === "asc") {
-      sortQuery = req.query.discountPrice ? { discountPrice: 1 } : { price: 1 };
-    } else if (req.query.sortOption === "desc") {
-      sortQuery = req.query.discountPrice
-        ? { discountPrice: -1 }
-        : { price: -1 };
-    }
-
-    const variationMatch = {
+    // Filters za variation
+    const variationFilter: any = {
       images: { $exists: true, $ne: [] },
-      ...variationFilter,
+      isActive: true,
     };
+    if (color) variationFilter.color = color;
+    if (size) {
+      variationFilter.sizes = { $elemMatch: { size } };
+    }
 
-    //Pagination settings
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
+    // Sort
+    let sortQuery: any = { createdAt: -1 };
+    if (sortOption === "asc") {
+      sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
+    } else if (sortOption === "desc") {
+      sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
+    }
 
-    const result = await Product.aggregate([
+    // Agregacija
+    const pipeline: any[] = [
       {
         $match: {
-          subcategory: req.params.subcategoryId,
-          variations: { $exists: true, $not: { $size: 0 } },
+          subcategory: { $in: [new mongoose.Types.ObjectId(subcategoryId)] },
+          isActive: true,
           ...productFilter,
         },
       },
       {
-        $sort: sortQuery, // sort pre facet-a
+        $lookup: {
+          from: "productvariants",
+          localField: "variations",
+          foreignField: "_id",
+          as: "variations",
+          pipeline: [{ $match: variationFilter }],
+        },
       },
+      { $match: { "variations.0": { $exists: true } } },
+      { $sort: sortQuery },
       {
         $facet: {
           data: [
             { $skip: skip },
-            { $limit: limit },
-            {
-              $project: {
-                createdAt: 0,
-                updatedAt: 0,
-              },
-            },
+            { $limit: limitNum },
+            { $project: { createdAt: 0, updatedAt: 0 } },
           ],
           totalCount: [{ $count: "count" }],
         },
       },
-    ]);
+    ];
 
-    const products = result[0].data;
-    const total = result[0].totalCount[0]?.count || 0;
-    const totalPages = Math.ceil(total / limit);
+    const result = await Product.aggregate(pipeline);
 
-    await Product.populate(products, {
-      path: "variations",
-      match: variationMatch,
-      select: "-createdAt -updatedAt",
-    });
+    const products = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limitNum);
 
     const productsDto: ProductDto[] = products.map((p: any) => ({
       ...p,
@@ -1405,38 +1608,32 @@ export const getAllproductsBySubcategoryWithFilters = async (
       variations: p.variations.map((v: any) => ({
         ...v,
         _id: v._id.toString(),
-        sizes: v.sizes
-          .filter((s: any) => s.size === size)
-          .map((s: any) => ({
-            ...s,
-            _id: s._id.toString(),
-            isAvailable: s.stock > 0,
-          })),
+        sizes: v.sizes.map((s: any) => ({
+          ...s,
+          _id: s._id.toString(),
+          isAvailable: s.stock > 0,
+        })),
       })),
     }));
 
     const productResponseDto: ProductsResponseDto = {
-      page: page,
-      total: total,
-      totalPages: totalPages,
+      page: pageNum,
+      total,
+      totalPages,
       products: productsDto,
     };
 
     res
       .status(200)
       .json(
-        createSuccessJson(
-          "BE_products_of_subcategories_success",
-          productResponseDto
-        )
+        createSuccessJson("BE_get_products_by_tag_success", productResponseDto)
       );
   } catch (error: any) {
-    console.log(error);
+    console.error(error);
     res
       .status(500)
       .json(
         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
       );
-    return;
   }
 };

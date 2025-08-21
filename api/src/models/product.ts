@@ -21,11 +21,13 @@ const ProductSchema = new Schema<Product>(
       ref: CATEGORY_KEY,
       required: true,
     },
-    subcategory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: CATEGORY_KEY,
-      required: true,
-    },
+    subcategory: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: CATEGORY_KEY,
+        required: true,
+      },
+    ],
     name: { type: String, required: true, unique: true },
     description: { type: String, required: true },
     material: { type: String, enum: Object.values(Material), required: true },
@@ -40,13 +42,14 @@ const ProductSchema = new Schema<Product>(
       required: true,
     },
     price: { type: Number, required: true },
-    discountPrice: { type: Number, min: 0 },
+    discountPrice: { type: Number },
     modelCode: { type: String, required: true, unique: true },
     productTag: [{ type: String, enum: Object.values(ProductTag) }],
 
     variations: [
       { type: mongoose.Schema.Types.ObjectId, ref: PRODUCT_VARIANT_KEY },
     ],
+    isActive: { type: Boolean, required: true },
   },
   { timestamps: true }
 );

@@ -13,5 +13,6 @@ export const productVariantSchema: z.ZodType<ProductVariantToAdd> = z
     product_id: z.string().regex(objectIdRegex, "Invalid ObjectId format"),
     color: z.nativeEnum(BaseColor).or(z.nativeEnum(ExtendedColor)),
     sizes: z.array(SizeInfoSchema).nonempty(),
+    isActive: z.boolean(),
   })
   .strict();

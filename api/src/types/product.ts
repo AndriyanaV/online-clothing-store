@@ -14,7 +14,7 @@ import { string } from "zod";
 export interface Product {
   _id?: Types.ObjectId;
   category: Types.ObjectId;
-  subcategory: Types.ObjectId;
+  subcategory: Types.ObjectId[];
   name: string;
   description: string;
   material: Material;
@@ -25,10 +25,14 @@ export interface Product {
   variations: Array<Types.ObjectId>;
   productTag?: ProductTag[];
   modelCode: string;
+  isActive: boolean;
 }
 
 export interface ProductDto
-  extends Omit<Product, "_id" | "category" | "subcategory" | "variations"> {
+  extends Omit<
+    Product,
+    "_id" | "category" | "subcategory" | "variations" | "isActive"
+  > {
   _id: string;
   category: string;
   subcategory: string;
@@ -53,6 +57,7 @@ export interface ProductVariant {
   color: BaseColor | ExtendedColor;
   sizes: SizeInfo[];
   images: string[];
+  isActive: boolean;
 }
 
 export interface ProductVariantDto extends Omit<ProductVariant, "_id"> {
@@ -62,7 +67,7 @@ export interface ProductVariantDto extends Omit<ProductVariant, "_id"> {
 export interface ProductBasicInfoToAddDto
   extends Omit<Product, "_id" | "variations" | "category" | "subcategory"> {
   category: string;
-  subcategory: string;
+  subcategory: string[];
 }
 
 export interface VariantSizeInfo {
@@ -103,9 +108,10 @@ export type ProductBasicInfoToUpdateDto = Omit<
 export interface ProductVariantToUpdateDto
   extends Omit<
     ProductVariantToAdd,
-    "product_id" | "color" | "sizes" | "images" | "hasImages"
+    "product_id" | "color" | "sizes" | "images" | "hasImages" | "isActive"
   > {
   sizes: SizeInfoToUpdate[];
+  isActive?: boolean;
 }
 
 export interface ProductBySku extends Omit<ProductVariantDto, "sizes"> {
