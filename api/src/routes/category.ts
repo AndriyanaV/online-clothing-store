@@ -10,6 +10,7 @@ import {
   getSubcategoriesOfMainCategory,
   getSubcategoriesOfMainCategoryAdmin,
   softDeleteCategory,
+  testForCategory,
   updateCategoryImage,
   updateMainCategoryInfo,
   updateSubCategoryImage,
@@ -64,3 +65,10 @@ categoryRouter.put(
 categoryRouter.patch("/deleteCategory/:categoryId", softDeleteCategory);
 
 export default categoryRouter;
+
+//CLOUDIANRY TEST
+categoryRouter.post(
+  "/addCategoryImageOnCloud/:categoryId",
+  addCateogryNameToReqBody,
+  testForCategory
+);

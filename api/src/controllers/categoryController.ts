@@ -31,6 +31,7 @@ import { validateRequestWithZodAndCleanFiles } from "../middleware/validateReque
 import { updateMainCategoryBodySchema } from "../schemas/category/updateMainCateogrySchema";
 import { addSubcategoryBodySchema } from "../schemas/category/addSubcategoriesSchema";
 import { updateSubcategoryBodySchema } from "../schemas/category/updateSubcategorySchema";
+import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
 
 // Podešavaš opcije za upload
 const uploadOptions = {
@@ -902,3 +903,12 @@ export const softDeleteCategory = async (
       );
   }
 };
+
+export const testForCategory = [
+  uploadFilesOnCloudianry(uploadOptions),
+  async (req: Request<{ categoryId: string }, {}, {}>, res: Response) => {
+    const files = req.files as Express.Multer.File[];
+    const urls = files.map((file) => file.path);
+    console.log(urls);
+  },
+];
