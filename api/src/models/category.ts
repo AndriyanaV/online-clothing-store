@@ -15,6 +15,7 @@ const CategorySchema = new Schema<Category>(
       { type: mongoose.Types.ObjectId, ref: CATEGORY_KEY, default: [] },
     ],
     categoryImageUrl: { type: String },
+    cloudinaryId: { type: String },
     isActive: { type: Boolean, default: true },
     parentCategory: {
       type: mongoose.Schema.Types.ObjectId,

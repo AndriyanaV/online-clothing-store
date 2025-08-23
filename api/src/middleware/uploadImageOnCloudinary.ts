@@ -30,12 +30,14 @@ export const uploadFilesOnCloudianry = (
       let folder = "my_uploads"; // osnovni folder
 
       if (options.uploadPath === UploadPath.PRODUCT) {
+        folder += "/product";
         // dodaj productName i variationColor ako postoje
         const productName = req.customData?.productName || "unknown_product";
         const variationColor =
           req.customData?.variationColor || "default_color";
         folder += `/${productName}/${variationColor}`;
       } else if (options.uploadPath === UploadPath.CATEGORY) {
+        folder += "/category";
         // dodaj category_name i eventualno subcategory_name
         const categoryName =
           req.customData?.cateogory_name || "unknown_category";
@@ -45,8 +47,14 @@ export const uploadFilesOnCloudianry = (
           folder += `/${req.customData.subcategory_name}`;
         }
       }
+
+      //custom filename
+      //Without this, Cloudinary will generate the file name automatically.
+      // const generatedName = Date.now() + "-" + file.originalname;
+
       return {
         folder,
+        // public_id: generatedName,
         allowed_formats: ["jpg", "jpeg", "png", "webp"],
         transformation: [{ width: 1200, height: 1200, crop: "limit" }],
       };
@@ -68,7 +76,7 @@ export const uploadFilesOnCloudianry = (
   // Biramo single ili multiple upload
   const uploadMiddleware =
     options.type === UploadType.MULTIPLE
-      ? upload.array(UPLOADS_FIELD, 30)
+      ? upload.array(UPLOADS_FIELD, 10)
       : upload.array(UPLOADS_FIELD, 1);
 
   // Middleware koji hvata greške

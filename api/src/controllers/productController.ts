@@ -51,6 +51,8 @@ import { addProductTagBodySchema } from "../schemas/product/addProductTag";
 import { addVariationSizeBodySchema } from "../schemas/product/addVariationSizeSchema";
 import { deleteVariantFolder } from "../utils/deteteVariantFolder";
 import { parentPort } from "worker_threads";
+import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
+import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
 
 //Upload options
 let uploadOptions = {
@@ -214,6 +216,7 @@ export const addProductVariationInfo = [
         product_id: req.body.product_id,
         color: req.body.color,
         images: [],
+        cloudinaryIds: [],
         isActive: req.body.isActive,
         sizes: sizesWithSKU,
       });
@@ -255,80 +258,80 @@ export const addProductVariationInfo = [
   },
 ];
 
-//Add product variation image
-export const addProductVariationPics = [
-  uploadFiles(uploadOptions),
+//Add product variation image - Local Upload Wokrs
+// export const addProductVariationPics = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ variationId: string; productId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ variationId: string; productId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
-          );
-        return;
-      }
-      const variation = await ProductVariant.findOne({
-        _id: req.params.variationId,
-      });
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+//           );
+//         return;
+//       }
+//       const variation = await ProductVariant.findOne({
+//         _id: req.params.variationId,
+//       });
 
-      if (!variation) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "BE_variation_not_found" },
-            ])
-          );
-        return;
-      }
+//       if (!variation) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "BE_variation_not_found" },
+//             ])
+//           );
+//         return;
+//       }
 
-      const productId = req.params.productId;
+//       const productId = req.params.productId;
 
-      const product = await Product.findOne({ _id: productId });
+//       const product = await Product.findOne({ _id: productId });
 
-      if (!product) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
-          );
-        return;
-      }
+//       if (!product) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+//           );
+//         return;
+//       }
 
-      let imageUrls: string[] = [];
+//       let imageUrls: string[] = [];
 
-      imageUrls = files.map((file) =>
-        path.relative("uploads", file.path).replace(/\\/g, "/")
-      );
+//       imageUrls = files.map((file) =>
+//         path.relative("uploads", file.path).replace(/\\/g, "/")
+//       );
 
-      variation.images = variation.images
-        ? [...variation.images, ...imageUrls]
-        : imageUrls;
+//       variation.images = variation.images
+//         ? [...variation.images, ...imageUrls]
+//         : imageUrls;
 
-      await variation.save();
+//       await variation.save();
 
-      res
-        .status(200)
-        .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
-      return;
-    } catch (error: any) {
-      console.error(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
+//       return;
+//     } catch (error: any) {
+//       console.error(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
 
 //Add variation size
 export const addVariationSize = [
@@ -553,81 +556,81 @@ export const updateProductVariantInfo = [
 ];
 
 //Update variant image
-export const updateProductVariationPics = [
-  uploadFiles(uploadOptions),
+// export const updateProductVariationPics = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ variationId: string; productId: string }, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ variationId: string; productId: string }, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "image_not_sended" }])
-          );
-        return;
-      }
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "image_not_sended" }])
+//           );
+//         return;
+//       }
 
-      const variation = await ProductVariant.findOne({
-        _id: req.params.variationId,
-        product_id: req.params.productId,
-      });
+//       const variation = await ProductVariant.findOne({
+//         _id: req.params.variationId,
+//         product_id: req.params.productId,
+//       });
 
-      if (!variation) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "BE_variation_not_found" },
-            ])
-          );
-        return;
-      }
+//       if (!variation) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "BE_variation_not_found" },
+//             ])
+//           );
+//         return;
+//       }
 
-      let newImagesUrls: string[] = [];
-      const oldImagesUrls = variation.images;
+//       let newImagesUrls: string[] = [];
+//       const oldImagesUrls = variation.images;
 
-      newImagesUrls = files.map((file) =>
-        path.relative("uploads", file.path).replace(/\\/g, "/")
-      );
+//       newImagesUrls = files.map((file) =>
+//         path.relative("uploads", file.path).replace(/\\/g, "/")
+//       );
 
-      variation.images = newImagesUrls;
+//       variation.images = newImagesUrls;
 
-      if (oldImagesUrls) {
-        await Promise.all(
-          oldImagesUrls.map(async (oldImagePath) => {
-            const fullOldPath = path.join("uploads", oldImagePath);
-            try {
-              await fs.promises.unlink(fullOldPath);
-              console.log("Old image deleted:", fullOldPath);
-            } catch (err) {
-              console.error("Failed to delete old image:", err);
-            }
-          })
-        );
-      }
+//       if (oldImagesUrls) {
+//         await Promise.all(
+//           oldImagesUrls.map(async (oldImagePath) => {
+//             const fullOldPath = path.join("uploads", oldImagePath);
+//             try {
+//               await fs.promises.unlink(fullOldPath);
+//               console.log("Old image deleted:", fullOldPath);
+//             } catch (err) {
+//               console.error("Failed to delete old image:", err);
+//             }
+//           })
+//         );
+//       }
 
-      await variation.save();
+//       await variation.save();
 
-      res
-        .status(200)
-        .json(createSuccessJson("BE_variant_picture_added_sucessfully", null));
-      return;
-    } catch (error: any) {
-      console.error(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_variant_picture_added_sucessfully", null));
+//       return;
+//     } catch (error: any) {
+//       console.error(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
 
 //Read
 
@@ -672,6 +675,11 @@ export const getAllproductsBySubcategory = async (
               $match: {
                 images: { $exists: true, $ne: [] },
                 isActive: true, // dodaje filtriranje po vidljivosti varijante
+              },
+            },
+            {
+              $project: {
+                cloudianryIds: 0, // ovo uklanja polje
               },
             },
           ],
@@ -730,7 +738,7 @@ export const getProduct = async (
           images: { $exists: true, $ne: [] },
           isActive: true, // filtrira samo aktivne varijante
         },
-        select: "-createdAt -updatedAt",
+        select: "-createdAt -updatedAt -cloudianryIds",
       })
       .lean();
 
@@ -1004,7 +1012,7 @@ export const getProductWithAllVariations = async (
       .select("-createdAt -updatedAt")
       .populate({
         path: "variations",
-        select: "-createdAt -updatedAt",
+        select: "-createdAt -updatedAt -cloudinaryIds",
       })
       .lean();
 
@@ -1076,7 +1084,7 @@ export const getAllproductsBySubcategoryAdmin = async (
       .select("-createdAt -updatedAt")
       .populate({
         path: "variations",
-        select: "-createdAt -updatedAt",
+        select: "-createdAt -updatedAt -cloudinaryIds",
       })
       .lean();
 
@@ -1418,7 +1426,14 @@ export const getProductsByTag = async (
           localField: "variations",
           foreignField: "_id",
           as: "variations",
-          pipeline: [{ $match: variationFilter }],
+          pipeline: [
+            { $match: variationFilter },
+            {
+              $project: {
+                cloudianryIds: 0,
+              },
+            },
+          ],
         },
       },
       { $match: { "variations.0": { $exists: true } } },
@@ -1577,7 +1592,14 @@ export const getAllproductsBySubcategoryWithFilters = async (
           localField: "variations",
           foreignField: "_id",
           as: "variations",
-          pipeline: [{ $match: variationFilter }],
+          pipeline: [
+            { $match: variationFilter },
+            {
+              $project: {
+                cloudianryIds: 0,
+              },
+            },
+          ],
         },
       },
       { $match: { "variations.0": { $exists: true } } },
@@ -1637,3 +1659,166 @@ export const getAllproductsBySubcategoryWithFilters = async (
       );
   }
 };
+
+//CLOUDINARY
+export const addProductVariationPicsCloudinary = [
+  uploadFilesOnCloudianry(uploadOptions),
+
+  async (
+    req: Request<{ variationId: string; productId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+          );
+        return;
+      }
+
+      let imageUrls: string[] = [];
+      let cloudianryIds: string[] = [];
+
+      imageUrls = files.map((file) => file.path);
+
+      cloudianryIds = files.map((file) => file.filename);
+
+      const variation = await ProductVariant.findOne({
+        _id: req.params.variationId,
+        product_id: req.params.productId,
+      });
+
+      if (!variation) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const productId = req.params.productId;
+
+      const product = await Product.findOne({ _id: productId });
+
+      if (!product) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+          );
+        return;
+      }
+
+      variation.images = imageUrls;
+      variation.cloudinaryIds = cloudianryIds;
+
+      await variation.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//CLOUDINARY
+export const updateProductVariationPicsCloudinary = [
+  uploadFilesOnCloudianry(uploadOptions),
+
+  async (
+    req: Request<{ variationId: string; productId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+          );
+        return;
+      }
+
+      let imageUrls: string[] = [];
+      let cloudianryIds: string[] = [];
+
+      imageUrls = files.map((file) => file.path);
+
+      cloudianryIds = files.map((file) => file.filename);
+
+      const variation = await ProductVariant.findOne({
+        _id: req.params.variationId,
+        product_id: req.params.productId,
+      });
+
+      if (!variation) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const productId = req.params.productId;
+
+      const product = await Product.findOne({ _id: productId });
+
+      if (!product) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+          );
+        return;
+      }
+
+      const odlUrls = variation.images;
+      const olsCloudinaryIds = variation.cloudinaryIds;
+
+      variation.images = imageUrls;
+      variation.cloudinaryIds = cloudianryIds;
+
+      await variation.save();
+
+      await deleteImageFromCloudinary(olsCloudinaryIds);
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_variant_image_updated_sucessfully", null));
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];

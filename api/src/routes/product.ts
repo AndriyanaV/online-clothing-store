@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import {
   addProductBasicInfo,
   addProductVariationInfo,
-  addProductVariationPics,
+  addProductVariationPicsCloudinary,
   addTagsToProduct,
   addVariationSize,
   getAllproductsBySubcategory,
@@ -17,7 +17,7 @@ import {
   softDeleteProduct,
   updateProductBasicInfo,
   updateProductVariantInfo,
-  updateProductVariationPics,
+  updateProductVariationPicsCloudinary,
 } from "../controllers/productController";
 import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
 
@@ -25,11 +25,11 @@ const productRouter = express.Router();
 
 productRouter.post("/addProductBasicInfo", addProductBasicInfo);
 productRouter.post("/addProductVariationInfo", addProductVariationInfo);
-productRouter.post(
-  "/addProductVariationPics/:productId/:variationId",
-  addColorAndNameToReqBody,
-  addProductVariationPics
-);
+// productRouter.post(
+//   "/addProductVariationPics/:productId/:variationId",
+//   addColorAndNameToReqBody,
+//   addProductVariationPics
+// );
 productRouter.post("/addTagsToProduct/:productId", addTagsToProduct);
 productRouter.post(
   "/addVariationSize/:productId/:variationId",
@@ -42,11 +42,11 @@ productRouter.put(
   "/updateProductVariantInfo/:variantId",
   updateProductVariantInfo
 );
-productRouter.put(
-  "/updateProductVariationPics/:productId/:variationId",
-  addColorAndNameToReqBody,
-  updateProductVariationPics
-);
+// productRouter.put(
+//   "/updateProductVariationPics/:productId/:variationId",
+//   addColorAndNameToReqBody,
+//   updateProductVariationPics
+// );
 
 //Get
 productRouter.get(
@@ -80,3 +80,16 @@ productRouter.get(
 
 // Soft Delete Product
 productRouter.patch("/softDeleteProduct/:productId", softDeleteProduct);
+
+//CLOUDINARY
+productRouter.post(
+  "/addProductVariationPicsCloudinary/:productId/:variationId",
+  addColorAndNameToReqBody,
+  addProductVariationPicsCloudinary
+);
+
+productRouter.put(
+  "/updateProductVariationPicsCloudinary/:productId/:variationId",
+  addColorAndNameToReqBody,
+  updateProductVariationPicsCloudinary
+);

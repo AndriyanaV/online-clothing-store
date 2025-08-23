@@ -7,6 +7,7 @@ export interface Category {
   subcategories?: Array<Types.ObjectId>;
   description: string;
   categoryImageUrl: string;
+  cloudinaryId: string;
   isActive: boolean;
   parentCategory?: Types.ObjectId | null;
 }
@@ -49,7 +50,11 @@ export interface UpdateMainCategoryDto
   extends Partial<
     Omit<
       Category,
-      "_id" | "categoryImageUrl" | "isMainCategory" | "subcategories"
+      | "_id"
+      | "categoryImageUrl"
+      | "isMainCategory"
+      | "subcategories"
+      | "cloudinaryId"
     >
   > {}
 
@@ -69,6 +74,7 @@ export interface AddMainCategoryDto
     | "isMainCategory"
     | "subcategories"
     | "parentCategory"
+    | "cloudinaryId"
   > {}
 
 export interface AddSubcategoryDto
@@ -79,6 +85,7 @@ export interface AddSubcategoryDto
     | "isMainCategory"
     | "subcategories"
     | "parentCategory"
+    | "cloudinaryId"
   > {}
 
 export interface AddedCategoryInfo extends Pick<CategoryDto, "_id" | "name"> {}

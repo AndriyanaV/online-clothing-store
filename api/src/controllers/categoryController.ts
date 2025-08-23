@@ -32,6 +32,7 @@ import { updateMainCategoryBodySchema } from "../schemas/category/updateMainCate
 import { addSubcategoryBodySchema } from "../schemas/category/addSubcategoriesSchema";
 import { updateSubcategoryBodySchema } from "../schemas/category/updateSubcategorySchema";
 import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
+import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
 
 // Podešavaš opcije za upload
 const uploadOptions = {
@@ -70,6 +71,7 @@ export const addMainCategoryInfo = [
         isActive: req.body.isActive,
         parentCategory: null,
         categoryImageUrl: "",
+        cloudinaryId: "",
       });
 
       await categoryToAdd.save();
@@ -148,6 +150,7 @@ export const addSubcategoryInfo = [
         isActive: req.body.isActive,
         parentCategory: req.params.categoryId,
         categoryImageUrl: "",
+        cloudinaryId: "",
       });
 
       await subcategoryToAdd.save();
@@ -181,158 +184,159 @@ export const addSubcategoryInfo = [
   },
 ];
 
-//Add category image
-export const addCategoryImage = [
-  uploadFiles(uploadOptions),
+//Add category image- local upload
+// export const addCategoryImage = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ categoryId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const category = await Category.findOne({ _id: req.params.categoryId });
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "addCategory", msg: "image_not_sended" }])
-          );
-        return;
-      }
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "addCategory", msg: "image_not_sended" }])
+//           );
+//         return;
+//       }
 
-      if (!category) {
-        const firstFile = files[0];
-        const filePath = path.join(
-          __dirname,
-          "..",
-          "..",
-          "uploads",
-          UploadPath.CATEGORY,
-          firstFile.filename
-        );
+//       if (!category) {
+//         const firstFile = files[0];
+//         const filePath = path.join(
+//           __dirname,
+//           "..",
+//           "..",
+//           "uploads",
+//           UploadPath.CATEGORY,
+//           firstFile.filename
+//         );
 
-        try {
-          await fs.promises.unlink(filePath);
-          console.log(`Successfully deleted uploaded file: ${filePath}`);
-        } catch (err) {
-          console.error("Failed to delete uploaded file:", err);
-        }
+//         try {
+//           await fs.promises.unlink(filePath);
+//           console.log(`Successfully deleted uploaded file: ${filePath}`);
+//         } catch (err) {
+//           console.error("Failed to delete uploaded file:", err);
+//         }
 
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "category_not_found" },
-            ])
-          );
-        return;
-      }
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "category_not_found" },
+//             ])
+//           );
+//         return;
+//       }
 
-      let imageUrl = null;
-      const firstFile = files[0];
+//       let imageUrl = null;
+//       const firstFile = files[0];
 
-      const relativeFilePath = path
-        .relative("uploads", firstFile.path)
-        .replace(/\\/g, "/");
-      imageUrl = relativeFilePath;
+//       const relativeFilePath = path
+//         .relative("uploads", firstFile.path)
+//         .replace(/\\/g, "/");
+//       imageUrl = relativeFilePath;
 
-      category.categoryImageUrl = imageUrl;
+//       category.categoryImageUrl = imageUrl;
 
-      await category.save();
-      res
-        .status(200)
-        .json(createSuccessJson("BE_category_image_sucessfully_added", null));
-      return;
-    } catch (error: any) {
-      console.log(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];
+//       await category.save();
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_category_image_sucessfully_added", null));
+//       return;
+//     } catch (error: any) {
+//       console.log(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
 
-export const addSubCategoryImage = [
-  uploadFiles(uploadOptions),
+//Local Upload
+// export const addSubCategoryImage = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const subcategory = await Category.findOne({
-        _id: req.params.subcategoryId,
-      });
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ subcategoryId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const subcategory = await Category.findOne({
+//         _id: req.params.subcategoryId,
+//       });
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "addCategory", msg: "image_not_sended" }])
-          );
-        return;
-      }
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "addCategory", msg: "image_not_sended" }])
+//           );
+//         return;
+//       }
 
-      if (!subcategory) {
-        const firstFile = files[0];
-        const filePath = path.join(
-          __dirname,
-          "..",
-          "..",
-          "uploads",
-          UploadPath.CATEGORY,
-          firstFile.filename
-        );
+//       if (!subcategory) {
+//         const firstFile = files[0];
+//         const filePath = path.join(
+//           __dirname,
+//           "..",
+//           "..",
+//           "uploads",
+//           UploadPath.CATEGORY,
+//           firstFile.filename
+//         );
 
-        try {
-          await fs.promises.unlink(filePath);
-          console.log(`Successfully deleted uploaded file: ${filePath}`);
-        } catch (err) {
-          console.error("Failed to delete uploaded file:", err);
-        }
+//         try {
+//           await fs.promises.unlink(filePath);
+//           console.log(`Successfully deleted uploaded file: ${filePath}`);
+//         } catch (err) {
+//           console.error("Failed to delete uploaded file:", err);
+//         }
 
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "category_not_found" },
-            ])
-          );
-        return;
-      }
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "category_not_found" },
+//             ])
+//           );
+//         return;
+//       }
 
-      let imageUrl = null;
-      const firstFile = files[0];
+//       let imageUrl = null;
+//       const firstFile = files[0];
 
-      const relativeFilePath = path
-        .relative("uploads", firstFile.path)
-        .replace(/\\/g, "/");
-      imageUrl = relativeFilePath;
+//       const relativeFilePath = path
+//         .relative("uploads", firstFile.path)
+//         .replace(/\\/g, "/");
+//       imageUrl = relativeFilePath;
 
-      subcategory.categoryImageUrl = imageUrl;
+//       subcategory.categoryImageUrl = imageUrl;
 
-      await subcategory.save();
-      res
-        .status(200)
-        .json(createSuccessJson("BE_category_image_sucessfully_added", null));
-      return;
-    } catch (error: any) {
-      console.log(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];
+//       await subcategory.save();
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_category_image_sucessfully_added", null));
+//       return;
+//     } catch (error: any) {
+//       console.log(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
 
 //Get Main Categories- for Admin
 export const getMainCategoriesAdmin = async (
@@ -343,7 +347,7 @@ export const getMainCategoriesAdmin = async (
     const mainCategories = await Category.find({
       isMainCategory: true,
     })
-      .select("_id name")
+      .select("_id name categoryImageUrl")
       .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
@@ -379,7 +383,7 @@ export const getMainCategories = async (
       isMainCategory: true,
       isActive: true,
     })
-      .select("_id name")
+      .select("_id name categoryImageUrl")
       .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
@@ -418,11 +422,14 @@ export const getSubcategoriesOfMainCategory = async (
       _id: categoryId,
       isMainCategory: true,
     })
-      .select(" -isMainCategory -createdAt -updatedAt -categoryImageUrl ")
+      .select(
+        " -isMainCategory -createdAt -updatedAt -categoryImageUrl -cloudinaryId"
+      )
       .populate<{ subcategories: SubcategoriesInfo[] }>({
         path: "subcategories",
         match: { isActive: true },
-        select: "-createdAt -updatedAt -subcategories -isMainCategory",
+        select:
+          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
       })
       .lean();
 
@@ -480,10 +487,13 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
       _id: categoryId,
       isMainCategory: true,
     })
-      .select(" -isMainCategory -createdAt -updatedAt -categoryImageUrl ")
+      .select(
+        " -isMainCategory -createdAt -updatedAt -categoryImageUrl -cloudinaryId"
+      )
       .populate<{ subcategories: SubcategoriesInfo[] }>({
         path: "subcategories",
-        select: "-createdAt -updatedAt -subcategories -isMainCategory",
+        select:
+          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
       })
       .lean();
 
@@ -640,180 +650,181 @@ export const updateSubcategory = [
   },
 ];
 
-//Update cateogry and subcategory img
-export const updateCategoryImage = [
-  uploadFiles(uploadOptions),
+//Update cateogry and subcategory img Local Upload
+// export const updateCategoryImage = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ categoryId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const category = await Category.findOne({ _id: req.params.categoryId });
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "image_not_sended" }])
-          );
-        return;
-      }
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "image_not_sended" }])
+//           );
+//         return;
+//       }
 
-      if (!category) {
-        try {
-          await fs.promises.unlink(files[0].path);
-          console.log("Uploaded file deleted due to invalid categoryId");
-        } catch (err) {
-          console.error("Failed to delete uploaded file:", err);
-        }
+//       if (!category) {
+//         try {
+//           await fs.promises.unlink(files[0].path);
+//           console.log("Uploaded file deleted due to invalid categoryId");
+//         } catch (err) {
+//           console.error("Failed to delete uploaded file:", err);
+//         }
 
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "category_not_exist" }])
-          );
-        return;
-      }
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "category_not_exist" }])
+//           );
+//         return;
+//       }
 
-      const oldImagePath = category.categoryImageUrl;
-      let newPath = oldImagePath;
+//       const oldImagePath = category.categoryImageUrl;
+//       let newPath = oldImagePath;
 
-      const firstFile = files[0];
-      const relativeFilePath = path
-        .relative("uploads", firstFile.path)
-        .replace(/\\/g, "/");
+//       const firstFile = files[0];
+//       const relativeFilePath = path
+//         .relative("uploads", firstFile.path)
+//         .replace(/\\/g, "/");
 
-      newPath = relativeFilePath;
-      category.categoryImageUrl = newPath;
+//       newPath = relativeFilePath;
+//       category.categoryImageUrl = newPath;
 
-      if (oldImagePath && oldImagePath !== newPath) {
-        const fullOldPath = path.join("uploads", oldImagePath);
-        try {
-          await fs.promises.unlink(fullOldPath);
-          console.log("Old image deleted:", fullOldPath);
-        } catch (err) {
-          console.error("Failed to delete old image:", err);
-        }
-      }
+//       if (oldImagePath && oldImagePath !== newPath) {
+//         const fullOldPath = path.join("uploads", oldImagePath);
+//         try {
+//           await fs.promises.unlink(fullOldPath);
+//           console.log("Old image deleted:", fullOldPath);
+//         } catch (err) {
+//           console.error("Failed to delete old image:", err);
+//         }
+//       }
 
-      await category.save();
+//       await category.save();
 
-      res
-        .status(200)
-        .json(
-          createSuccessJson("BE_category_image_updated_successfully", null)
-        );
-      return;
-    } catch (error: any) {
-      console.log(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-    }
-  },
-];
+//       res
+//         .status(200)
+//         .json(
+//           createSuccessJson("BE_category_image_updated_successfully", null)
+//         );
+//       return;
+//     } catch (error: any) {
+//       console.log(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//     }
+//   },
+// ];
 
-export const updateSubCategoryImage = [
-  uploadFiles(uploadOptions),
+//Local upload
+// export const updateSubCategoryImage = [
+//   uploadFiles(uploadOptions),
 
-  async (
-    req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
-      const files = req.files as Express.Multer.File[];
+//   async (
+//     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const category = await Category.findOne({ _id: req.params.categoryId });
+//       const files = req.files as Express.Multer.File[];
 
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "image_not_sended" }])
-          );
-        return;
-      }
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "image_not_sended" }])
+//           );
+//         return;
+//       }
 
-      if (!category) {
-        try {
-          await fs.promises.unlink(files[0].path);
-          console.log("Uploaded file deleted due to invalid categoryId");
-        } catch (err) {
-          console.error("Failed to delete uploaded file:", err);
-        }
+//       if (!category) {
+//         try {
+//           await fs.promises.unlink(files[0].path);
+//           console.log("Uploaded file deleted due to invalid categoryId");
+//         } catch (err) {
+//           console.error("Failed to delete uploaded file:", err);
+//         }
 
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "category_not_exist" }])
-          );
-        return;
-      }
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "category_not_exist" }])
+//           );
+//         return;
+//       }
 
-      const subcategory = await Category.findOne({
-        _id: req.params.subcategoryId,
-        isMainCategory: false,
-        parentCategory: req.params.categoryId,
-      });
+//       const subcategory = await Category.findOne({
+//         _id: req.params.subcategoryId,
+//         isMainCategory: false,
+//         parentCategory: req.params.categoryId,
+//       });
 
-      if (!subcategory) {
-        try {
-          await fs.promises.unlink(files[0].path);
-          console.log("Uploaded file deleted due to invalid categoryId");
-        } catch (err) {
-          console.error("Failed to delete uploaded file:", err);
-        }
+//       if (!subcategory) {
+//         try {
+//           await fs.promises.unlink(files[0].path);
+//           console.log("Uploaded file deleted due to invalid categoryId");
+//         } catch (err) {
+//           console.error("Failed to delete uploaded file:", err);
+//         }
 
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "subcategory_not_exist" }])
-          );
-        return;
-      }
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "subcategory_not_exist" }])
+//           );
+//         return;
+//       }
 
-      const oldImagePath = subcategory.categoryImageUrl;
-      let newPath = oldImagePath;
+//       const oldImagePath = subcategory.categoryImageUrl;
+//       let newPath = oldImagePath;
 
-      const firstFile = files[0];
-      const relativeFilePath = path
-        .relative("uploads", firstFile.path)
-        .replace(/\\/g, "/");
+//       const firstFile = files[0];
+//       const relativeFilePath = path
+//         .relative("uploads", firstFile.path)
+//         .replace(/\\/g, "/");
 
-      newPath = relativeFilePath;
-      subcategory.categoryImageUrl = newPath;
+//       newPath = relativeFilePath;
+//       subcategory.categoryImageUrl = newPath;
 
-      if (oldImagePath && oldImagePath !== newPath) {
-        const fullOldPath = path.join("uploads", oldImagePath);
-        try {
-          await fs.promises.unlink(fullOldPath);
-          console.log("Old image deleted:", fullOldPath);
-        } catch (err) {
-          console.error("Failed to delete old image:", err);
-        }
-      }
+//       if (oldImagePath && oldImagePath !== newPath) {
+//         const fullOldPath = path.join("uploads", oldImagePath);
+//         try {
+//           await fs.promises.unlink(fullOldPath);
+//           console.log("Old image deleted:", fullOldPath);
+//         } catch (err) {
+//           console.error("Failed to delete old image:", err);
+//         }
+//       }
 
-      await subcategory.save();
+//       await subcategory.save();
 
-      res
-        .status(200)
-        .json(
-          createSuccessJson("BE_subcategory_image_updated_successfully", null)
-        );
-      return;
-    } catch (error: any) {
-      console.log(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-    }
-  },
-];
+//       res
+//         .status(200)
+//         .json(
+//           createSuccessJson("BE_subcategory_image_updated_successfully", null)
+//         );
+//       return;
+//     } catch (error: any) {
+//       console.log(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//     }
+//   },
+// ];
 
 export const getCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
@@ -823,10 +834,10 @@ export const getCategory = async (
     const category = await Category.findOne({
       _id: req.params.categoryId,
     })
-      .select("-createdAt -updatedAt")
+      .select("-createdAt -updatedAt -cloudinaryId")
       .populate({
         path: "subcategories",
-        select: "-createdAt -updatedAt",
+        select: "-createdAt -updatedAt -cloudinaryId",
       });
     if (!category) {
       res
@@ -904,11 +915,262 @@ export const softDeleteCategory = async (
   }
 };
 
-export const testForCategory = [
+//Add image for category - Cloudinary Upload
+export const addCategoryImage = [
   uploadFilesOnCloudianry(uploadOptions),
-  async (req: Request<{ categoryId: string }, {}, {}>, res: Response) => {
-    const files = req.files as Express.Multer.File[];
-    const urls = files.map((file) => file.path);
-    console.log(urls);
+  async (
+    req: Request<{ categoryId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
+        return;
+      }
+
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
+
+      //For now, because of the middleware, if the category doesn’t exist, we never get there.
+      if (!category) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+          );
+        return;
+      }
+
+      category.categoryImageUrl = files[0].path;
+      category.cloudinaryId = files[0].filename;
+
+      await category.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_category_image_added_successfully", null));
+      return;
+      // const uploadedFiles = files.map((file) => ({
+      //   url: file.path, // ovo je već HTTPS link koji Cloudinary vraća
+      //   publicId: file.filename, // ovo je Cloudinary public_id
+      // }));
+
+      // console.log(uploadedFiles);
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+    }
+  },
+];
+
+//Cloudinary solution
+export const updateCategoryImage = [
+  uploadFilesOnCloudianry(uploadOptions),
+  async (
+    req: Request<{ categoryId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
+        return;
+      }
+
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
+
+      //For now, because of the middleware, if the category doesn’t exist, we never get there.
+      if (!category) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+          );
+        return;
+      }
+
+      const oldImage = category.categoryImageUrl;
+      const oldCloudId = category.cloudinaryId;
+
+      category.categoryImageUrl = files[0].path;
+      category.cloudinaryId = files[0].filename;
+
+      await category.save();
+
+      if (oldCloudId) {
+        await deleteImageFromCloudinary(oldCloudId);
+      }
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_category_image_update_successfully", null));
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+    }
+  },
+];
+
+export const addSubCategoryImageCloudinary = [
+  uploadFilesOnCloudianry(uploadOptions),
+
+  async (
+    req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "image_not_sended" }])
+          );
+        return;
+      }
+
+      const category = await Category.findOne({ _id: req.params.categoryId });
+
+      if (!category) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+          );
+        return;
+      }
+
+      const subcategory = await Category.findOne({
+        _id: req.params.subcategoryId,
+        isMainCategory: false,
+        parentCategory: req.params.categoryId,
+      });
+
+      if (!subcategory) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "subcategory_not_exist" }])
+          );
+        return;
+      }
+
+      subcategory.categoryImageUrl = files[0].path;
+      subcategory.cloudinaryId = files[0].filename;
+
+      await subcategory.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_category_image_added_successfully", null));
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+    }
+  },
+];
+
+export const updateSubCategoryImageCloudinary = [
+  uploadFilesOnCloudianry(uploadOptions),
+
+  async (
+    req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "image_not_sended" }])
+          );
+        return;
+      }
+
+      const category = await Category.findOne({ _id: req.params.categoryId });
+
+      if (!category) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+          );
+        return;
+      }
+
+      const subcategory = await Category.findOne({
+        _id: req.params.subcategoryId,
+        isMainCategory: false,
+        parentCategory: req.params.categoryId,
+      });
+
+      if (!subcategory) {
+        await deleteImageFromCloudinary(files[0].filename);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "subcategory_not_exist" }])
+          );
+        return;
+      }
+
+      const oldImage = subcategory.categoryImageUrl;
+      const oldCloudId = subcategory.cloudinaryId;
+
+      subcategory.categoryImageUrl = files[0].path;
+      subcategory.cloudinaryId = files[0].filename;
+
+      await subcategory.save();
+
+      if (oldCloudId) {
+        await deleteImageFromCloudinary(oldCloudId);
+      }
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson("BE_category_image_updated_successfully", null)
+        );
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+    }
   },
 ];
