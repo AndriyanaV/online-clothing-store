@@ -1,6 +1,5 @@
-import * as express from 'express';
+import * as express from "express";
 import { Types } from "mongoose";
-
 
 declare global {
   namespace Express {
@@ -8,11 +7,14 @@ declare global {
       /** Podaci specifični za JEDAN zahtev */
       customData?: {
         variationColor?: string;
-        product_id?:Types.ObjectId;
+        product_id?: Types.ObjectId;
         productName?: string;
+        cateogory_name?: string;
+        subcategory_name?: string;
+        userId?: string;
       };
     }
   }
 }
 
-export {}
+export {};

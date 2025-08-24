@@ -1,15 +1,20 @@
-import { ObjectId } from 'mongodb';
-import { role } from '../constants/user';
-
+import { ObjectId } from "mongodb";
+import { UserRole } from "../constants/user";
 
 export interface User {
-    email:string;
-    password: string;
-    firstName?: string;
-    lastName?: string;
-    role?: role;
-    createdAt?: Date;
-    updatedAt?: Date; 
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+  role?: UserRole;
+  // Token which using for email verification
+  verificationToken?: string;
+  verificationTokenExpires: Date;
+  // Default false
+  verifiedEmail: boolean;
+  resetPasswordToken: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 // export interface publicUser {
@@ -23,23 +28,38 @@ export interface User {
 // }
 
 export interface UserDto extends User {
-  _id:string;
+  _id: string;
 }
 
-export interface UserInfo extends Partial<Pick<User,
-|  'email' |  'firstName' |  'lastName' | 'role' >> {
+export interface UserInfo
+  extends Partial<Pick<User, "email" | "firstName" | "lastName" | "role">> {}
 
-}
-
-export interface UpdateUserBody extends Partial<Pick<User,
-| 'firstName' | 'lastName' >> {
-  
-}
+export interface UpdateUserBody
+  extends Partial<Pick<User, "firstName" | "lastName">> {}
 
 // Same as IUser but without password
-export interface IUserPublic extends Omit<UserDto,
-  'password' 
-> { }
+export interface IUserPublic
+  extends Omit<
+    UserDto,
+    | "password"
+    | "role"
+    | "verificationToken"
+    | "verificationTokenExpires"
+    | "verifiedEmail"
+    | "resetPasswordToken"
+  > {}
 
+export type PublicUser = Omit<
+  UserDto,
+  | "password"
+  | "createdAt"
+  | "updatedAt"
+  | "verifiedEmail"
+  | "verificationToken"
+  | "verificationTokenExpires"
+  | "resetPasswordToken"
+>;
 
-export type PublicUser = Omit<UserDto , 'password' | 'createdAt' | 'updatedAt'>;
+export interface filterRole {
+  role?: UserRole;
+}

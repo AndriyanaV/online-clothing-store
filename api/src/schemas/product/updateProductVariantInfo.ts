@@ -1,7 +1,21 @@
 import { z } from "zod";
-import { ProductVariantToUpdate } from "../../types/product";
+import {
+  ProductVariantToUpdateDto,
+  SizeInfo,
+  SizeInfoToAdd,
+  SizeInfoToUpdate,
+} from "../../types/product";
+import { Size } from "../../constants/product";
 
-export const updateProductVariantInfoBodySchema: z.ZodType<ProductVariantToUpdate> = z.object({
-   stock: z.number().int().nonnegative().optional(),
-   isAvailable: z.boolean().default(true).optional()
-}).strict();
+const SizeInfoToUpdateSchema: z.ZodType<SizeInfoToUpdate> = z.object({
+  size: z.nativeEnum(Size),
+  stock: z.number().nonnegative(),
+});
+
+export const updateProductVariantInfoBodySchema: z.ZodType<ProductVariantToUpdateDto> =
+  z
+    .object({
+      sizes: z.array(SizeInfoToUpdateSchema).nonempty(),
+      isActive: z.boolean().optional(),
+    })
+    .strict();
