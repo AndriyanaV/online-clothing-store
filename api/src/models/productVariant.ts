@@ -27,6 +27,7 @@ const productVariantSchema = new Schema<ProductVariant>(
       required: true,
     },
     images: [{ type: String }],
+    cloudinaryIds: [{ type: String }],
     isActive: { type: Boolean, required: true },
   },
   { timestamps: true }

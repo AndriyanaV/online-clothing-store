@@ -57,6 +57,7 @@ export interface ProductVariant {
   color: BaseColor | ExtendedColor;
   sizes: SizeInfo[];
   images: string[];
+  cloudinaryIds: string[];
   isActive: boolean;
 }
 
@@ -84,7 +85,7 @@ export interface SizeInfoToUpdate extends SizeInfoToAdd {}
 export interface ProductVariantToAdd
   extends Omit<
     ProductVariant,
-    "_id" | "images" | "product_id" | "hasImages" | "sizes"
+    "_id" | "images" | "product_id" | "hasImages" | "sizes" | "cloudinaryIds"
   > {
   product_id: string;
   sizes: SizeInfoToAdd[];
@@ -108,7 +109,13 @@ export type ProductBasicInfoToUpdateDto = Omit<
 export interface ProductVariantToUpdateDto
   extends Omit<
     ProductVariantToAdd,
-    "product_id" | "color" | "sizes" | "images" | "hasImages" | "isActive"
+    | "product_id"
+    | "color"
+    | "sizes"
+    | "images"
+    | "hasImages"
+    | "isActive"
+    | "cloudinaryIds"
   > {
   sizes: SizeInfoToUpdate[];
   isActive?: boolean;

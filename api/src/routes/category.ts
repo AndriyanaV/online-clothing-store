@@ -2,7 +2,7 @@ import express, { Router } from "express";
 import {
   addCategoryImage,
   addMainCategoryInfo,
-  addSubCategoryImage,
+  addSubCategoryImageCloudinary,
   addSubcategoryInfo,
   getCategory,
   getMainCategories,
@@ -12,7 +12,7 @@ import {
   softDeleteCategory,
   updateCategoryImage,
   updateMainCategoryInfo,
-  updateSubCategoryImage,
+  updateSubCategoryImageCloudinary,
 } from "../controllers/categoryController";
 import addCateogryNameToReqBody from "../middleware/addCategoryNameToReqBody";
 import addCateogryAndSubcatNameToReqBody from "../middleware/addCateogryAndSubcatNameToReqBodt";
@@ -21,16 +21,19 @@ const categoryRouter = express.Router();
 
 categoryRouter.post("/addMainCategoryInfo", addMainCategoryInfo);
 categoryRouter.post("/addSubcategoryInfo/:categoryId", addSubcategoryInfo);
-categoryRouter.post(
-  "/addCategoryImage/:categoryId",
-  addCateogryNameToReqBody,
-  addCategoryImage
-);
-categoryRouter.post(
-  "/addSubcategoryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
-  addSubCategoryImage
-);
+
+//Local upload- Route works
+// categoryRouter.post(
+//   "/addCategoryImage/:categoryId",
+//   addCateogryNameToReqBody,
+//   addCategoryImage
+// );
+
+// categoryRouter.post(
+//   "/addSubcategoryImage/:categoryId/:subcategoryId",
+//   addCateogryAndSubcatNameToReqBody,
+//   addSubCategoryImage
+// );
 
 // categoryRouter.post('/addCategory',addCategory);
 categoryRouter.get("/getMainCategories", getMainCategories);
@@ -45,22 +48,51 @@ categoryRouter.get(
 );
 categoryRouter.get("/getCategory/:categoryId", getCategory);
 
-categoryRouter.put(
-  "/updateCategoryImage/:categoryId",
-  addCateogryNameToReqBody,
-  updateCategoryImage
-);
+//Local Upload - Works
+// categoryRouter.put(
+//   "/updateCategoryImage/:categoryId",
+//   addCateogryNameToReqBody,
+//   updateCategoryImage
+// );
+
 categoryRouter.put(
   "/updateMainCategoryInfo/:categoryId",
   updateMainCategoryInfo
 );
-categoryRouter.put(
-  "/updateSubcateogryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
-  updateSubCategoryImage
-);
+
+//Update Subcategory Image- Local Upload
+// categoryRouter.put(
+//   "/updateSubcateogryImage/:categoryId/:subcategoryId",
+//   addCateogryAndSubcatNameToReqBody,
+//   updateSubCategoryImage
+// );
 
 //Not real delte just set isActive to false
 categoryRouter.patch("/deleteCategory/:categoryId", softDeleteCategory);
 
 export default categoryRouter;
+
+//CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
+categoryRouter.post(
+  "/addCategoryImageOnCloud/:categoryId",
+  addCateogryNameToReqBody,
+  addCategoryImage
+);
+categoryRouter.put(
+  "/updateCategoryImage/:categoryId",
+  addCateogryNameToReqBody,
+  updateCategoryImage
+);
+
+//SUBCATEGORY ADD AND UPDATE IMAGE- CLOUDINARY
+categoryRouter.put(
+  "/updateSubcateogryImage/:categoryId/:subcategoryId",
+  addCateogryAndSubcatNameToReqBody,
+  updateSubCategoryImageCloudinary
+);
+
+categoryRouter.put(
+  "/addSubcategoryImage/:categoryId/:subcategoryId",
+  addCateogryAndSubcatNameToReqBody,
+  addSubCategoryImageCloudinary
+);
