@@ -72,7 +72,7 @@ categoryRouter.patch("/deleteCategory/:categoryId", softDeleteCategory);
 
 export default categoryRouter;
 
-//CLOUDIANRY TEST
+//CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
 categoryRouter.post(
   "/addCategoryImageOnCloud/:categoryId",
   addCateogryNameToReqBody,
