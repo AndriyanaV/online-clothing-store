@@ -22,7 +22,10 @@ const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
 
     const decodedData = jwt.verify(token, JWT_SECRET) as IUserPayload;
 
-    req.userId = decodedData?.id;
+    req.customData = req.customData || {};
+
+    req.customData.userId = decodedData?.id;
+    req.customData.userEmail = decodedData?.email;
 
     next();
   } catch {

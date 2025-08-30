@@ -213,14 +213,14 @@ export const login = [
         return;
       }
 
-      if (!user.verifiedEmail) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "login", msg: "BE_verify_your_account" }])
-          );
-        return;
-      }
+      // if (!user.verifiedEmail) {
+      //   res
+      //     .status(400)
+      //     .json(
+      //       createErrorJson([{ type: "login", msg: "BE_verify_your_account" }])
+      //     );
+      //   return;
+      // }
 
       const isMatch = await bcrypt.compare(password, user.password);
 
