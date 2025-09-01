@@ -1647,9 +1647,7 @@ export const getAllproductsBySubcategoryWithFilters = async (
 
     res
       .status(200)
-      .json(
-        createSuccessJson("BE_get_products_by_tag_success", productResponseDto)
-      );
+      .json(createSuccessJson("BE_get_products_success", productResponseDto));
   } catch (error: any) {
     console.error(error);
     res

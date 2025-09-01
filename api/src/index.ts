@@ -10,6 +10,7 @@ import { UPLOADS_FIELD } from "./constants/uploads";
 import { AccessLevel } from "./types/uploadFiles";
 import productRouter from "./routes/product";
 import dotenv from "dotenv";
+import orderRouter from "./routes/order";
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ server.use("/api/auth", authRouter);
 server.use("/api/user", userRouter);
 server.use("/api/category", categoryRouter);
 server.use("/api/product", productRouter);
+server.use("/api/order", orderRouter);
 
 server.get("/", (req, res) => {
   res.send("Server is running");

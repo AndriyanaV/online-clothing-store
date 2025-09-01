@@ -45,6 +45,7 @@ export interface SizeInfo {
   size: Size;
   stock: number;
   SKU: string;
+  _id?: Types.ObjectId;
 }
 
 export interface SizeInfoDto extends SizeInfo {

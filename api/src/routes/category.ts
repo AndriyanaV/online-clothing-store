@@ -70,8 +70,6 @@ categoryRouter.put(
 //Not real delte just set isActive to false
 categoryRouter.patch("/deleteCategory/:categoryId", softDeleteCategory);
 
-export default categoryRouter;
-
 //CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
 categoryRouter.post(
   "/addCategoryImageOnCloud/:categoryId",
@@ -96,3 +94,5 @@ categoryRouter.put(
   addCateogryAndSubcatNameToReqBody,
   addSubCategoryImageCloudinary
 );
+
+export default categoryRouter;

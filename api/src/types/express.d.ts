@@ -12,6 +12,7 @@ declare global {
         cateogory_name?: string;
         subcategory_name?: string;
         userId?: string;
+        userEmail?: string;
       };
     }
   }
