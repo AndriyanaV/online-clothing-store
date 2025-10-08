@@ -11,9 +11,9 @@ const CategorySchema = new Schema<Category>(
     name: { type: String, required: true },
     description: { type: String, default: "" },
     isMainCategory: { type: Boolean, default: false },
-    subcategories: [
-      { type: mongoose.Types.ObjectId, ref: CATEGORY_KEY, default: [] },
-    ],
+    // subcategories: [
+    //   { type: mongoose.Types.ObjectId, ref: CATEGORY_KEY, default: [] },
+    // ],
     categoryImageUrl: { type: String },
     cloudinaryId: { type: String },
     isActive: { type: Boolean, default: true },

@@ -12,6 +12,7 @@ import {
   softDeleteCategory,
   updateCategoryImage,
   updateMainCategoryInfo,
+  updateSubcategory,
   updateSubCategoryImageCloudinary,
 } from "../controllers/categoryController";
 import addCateogryNameToReqBody from "../middleware/addCategoryNameToReqBody";
@@ -53,6 +54,10 @@ categoryRouter.get(
 categoryRouter.put(
   "/protected/updateMainCategoryInfo/:categoryId",
   updateMainCategoryInfo
+);
+categoryRouter.put(
+  "/protected/updateSubcategoryMainInfo/:subcategoryId",
+  updateSubcategory
 );
 
 //CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE

@@ -13,7 +13,6 @@ import {
 import path from "path";
 import {
   CategoryInfo,
-  CategoryWithPopulatedSubs,
   SubCategoryInfo,
   SubCategory,
   CategoryDto,
@@ -52,16 +51,14 @@ export const addMainCategoryInfo = [
       const categoryName = await Category.findOne({ name: req.body.name });
 
       if (categoryName) {
-        res
-          .status(409)
-          .json(
-            createErrorJson([
-              {
-                type: "category",
-                msg: "BE_category_with_this_name_alredy_exsist",
-              },
-            ])
-          );
+        res.status(409).json(
+          createErrorJson([
+            {
+              type: "category",
+              msg: "BE_category_with_this_name_alredy_exsist",
+            },
+          ])
+        );
         return;
       }
 
@@ -69,7 +66,6 @@ export const addMainCategoryInfo = [
         name: req.body.name,
         description: req.body.description,
         isMainCategory: true,
-        subcategories: [],
         isActive: req.body.isActive,
         parentCategory: null,
         categoryImageUrl: "",
@@ -107,7 +103,6 @@ export const addMainCategoryInfo = [
 //Add cateogry subcategory basic info without image
 export const addSubcategoryInfo = [
   validateRequestWithZod(addSubcategoryBodySchema),
-
   async (
     req: Request<{ categoryId: string }, {}, AddSubcategoryDto>,
     res: Response<ApiResponse<AddedCategoryInfo>>
@@ -149,7 +144,6 @@ export const addSubcategoryInfo = [
         name: req.body.name,
         description: req.body.description,
         isMainCategory: false,
-        subcategories: [],
         isActive: req.body.isActive,
         parentCategory: req.params.categoryId,
         categoryImageUrl: "",
@@ -158,11 +152,7 @@ export const addSubcategoryInfo = [
 
       await subcategoryToAdd.save();
 
-      category.subcategories?.push(subcategoryToAdd._id);
-
-      await category.save();
-
-      const addedMainCateogry: AddedCategoryInfo = {
+      const addedSubCateogry: AddedCategoryInfo = {
         _id: subcategoryToAdd._id.toString(),
         name: subcategoryToAdd.name,
       };
@@ -172,7 +162,7 @@ export const addSubcategoryInfo = [
         .json(
           createSuccessJson(
             "BE_subcategory_sucessfully_added",
-            addedMainCateogry
+            addedSubCateogry
           )
         );
       return;
@@ -417,53 +407,54 @@ export const getMainCategories = async (
 //get active subcategories of main category - for user
 export const getSubcategoriesOfMainCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<CategoryWithPopulatedSubs>>
+  res: Response<ApiResponse<CategoryInfo[]>>
 ) => {
   try {
-    const categoryId = req.params.categoryId;
-
-    const mainCategoryWithSubcategories = await Category.findOne({
-      _id: categoryId,
+    const parentCategory = await Category.findOne({
+      _id: req.params.categoryId,
       isMainCategory: true,
-    })
-      .select(
-        " -isMainCategory -createdAt -updatedAt -categoryImageUrl -cloudinaryId"
-      )
-      .populate<{ subcategories: SubcategoriesInfo[] }>({
-        path: "subcategories",
-        match: { isActive: true },
-        select:
-          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
-      })
-      .lean();
+      isActive: true,
+    });
 
-    if (!mainCategoryWithSubcategories) {
+    if (!parentCategory) {
       res.status(404).json(
         createErrorJson([
           {
             type: "get-subcategories",
-            msg: "BE_category_not_found",
+            msg: "BE_main_category_not_found",
           },
         ])
       );
       return;
     }
 
-    const returnedSubcategories: CategoryWithPopulatedSubs = {
-      ...mainCategoryWithSubcategories,
-      _id: mainCategoryWithSubcategories._id.toString(),
-      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
-        (sub) => ({
-          ...sub,
-          _id: sub._id.toString(),
-        })
-      ),
-    };
+    const subcategories = await Category.find({
+      isMainCategory: false,
+      parentCategory: req.params.categoryId,
+      isActive: true,
+    }).select("-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory");
+
+    if (!subcategories) {
+      res.status(404).json(
+        createErrorJson([
+          {
+            type: "get-subcategories",
+            msg: "BE_subcategories_not_found",
+          },
+        ])
+      );
+      return;
+    }
+
+    const returnedSubcategories: CategoryInfo[] = subcategories.map((sub) => ({
+      ...sub.toObject(),
+      _id: sub._id.toString(),
+    }));
 
     res
       .status(200)
       .json(
-        createSuccessJson<CategoryWithPopulatedSubs>(
+        createSuccessJson<CategoryInfo[]>(
           "BE_subcategories_of_category_fetched_successfully",
           returnedSubcategories
         )
@@ -482,51 +473,52 @@ export const getSubcategoriesOfMainCategory = async (
 //get all subcategories of main category- for Admin, see inactive also
 export const getSubcategoriesOfMainCategoryAdmin = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<CategoryWithPopulatedSubs>>
+  res: Response<ApiResponse<CategoryInfo[]>>
 ) => {
   try {
-    const categoryId = req.params.categoryId;
-
-    const mainCategoryWithSubcategories = await Category.findOne({
-      _id: categoryId,
+    const parentCategory = await Category.findOne({
+      _id: req.params.categoryId,
       isMainCategory: true,
-    })
-      .select("-isMainCategory  -cloudinaryId")
-      .populate<{ subcategories: SubcategoriesInfo[] }>({
-        path: "subcategories",
-        select:
-          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
-      })
-      .lean();
+    });
 
-    if (!mainCategoryWithSubcategories) {
+    if (!parentCategory) {
       res.status(404).json(
         createErrorJson([
           {
             type: "get-subcategories",
-            msg: "BE_category_not_found",
+            msg: "BE_main_category_not_found",
           },
         ])
       );
       return;
     }
 
-    const returnedSubcategories: CategoryWithPopulatedSubs = {
-      ...mainCategoryWithSubcategories,
-      _id: mainCategoryWithSubcategories._id.toString(),
-      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
-        (sub) => ({
-          ...sub,
-          _id: sub._id.toString(),
-        })
-      ),
-    };
+    const subcategories = await Category.find({
+      isMainCategory: false,
+      parentCategory: req.params.categoryId,
+    }).select("-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory");
 
-    // console.log(retrensSubcategories);
+    if (!subcategories) {
+      res.status(404).json(
+        createErrorJson([
+          {
+            type: "get-subcategories",
+            msg: "BE_subcategories_not_found",
+          },
+        ])
+      );
+      return;
+    }
+
+    const returnedSubcategories: CategoryInfo[] = subcategories.map((sub) => ({
+      ...sub.toObject(),
+      _id: sub._id.toString(),
+    }));
+
     res
       .status(200)
       .json(
-        createSuccessJson<CategoryWithPopulatedSubs>(
+        createSuccessJson<CategoryInfo[]>(
           "BE_subcategories_of_category_fetched_successfully",
           returnedSubcategories
         )
@@ -550,14 +542,17 @@ export const updateMainCategoryInfo = [
     res: Response<ApiResponse<null>>
   ) => {
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
       if (!category) {
         res
           .status(400)
           .json(
             createErrorJson([
-              { type: "categoryUpdate", msg: "category_not_exist" },
+              { type: "categoryUpdate", msg: "main_category_not_exist" },
             ])
           );
         return;
@@ -565,6 +560,7 @@ export const updateMainCategoryInfo = [
 
       const categoryWithSameName = await Category.findOne({
         name: req.body.name,
+        isMainCategory: true,
         _id: { $ne: category._id },
       });
 
@@ -573,7 +569,7 @@ export const updateMainCategoryInfo = [
           createErrorJson([
             {
               type: "categoryUpdate",
-              msg: "BE_category_with_this_name_alredy_exsist",
+              msg: "BE_category_with_this_name_already_exist",
             },
           ])
         );
@@ -625,6 +621,24 @@ export const updateSubcategory = [
               { type: "categoryUpdate", msg: "subcategory_not_exist" },
             ])
           );
+        return;
+      }
+
+      const subCategoryWithSameName = await Category.findOne({
+        name: req.body.name,
+        isMainCategory: false,
+        _id: { $ne: subcategory._id },
+      });
+
+      if (subCategoryWithSameName) {
+        res.status(400).json(
+          createErrorJson([
+            {
+              type: "subcategoryUpdate",
+              msg: "BE_subcategory_with_this_name_already_exist",
+            },
+          ])
+        );
         return;
       }
 
@@ -836,12 +850,7 @@ export const getCategory = async (
     const category = await Category.findOne({
       _id: req.params.categoryId,
       isActive: true,
-    })
-      .select("-createdAt -updatedAt -cloudinaryId")
-      .populate({
-        path: "subcategories",
-        select: "-createdAt -updatedAt -cloudinaryId",
-      });
+    }).select("-createdAt -updatedAt -cloudinaryId -isActive");
 
     if (!category) {
       res
@@ -896,11 +905,6 @@ export const softDeleteCategory = async (
     }
 
     category.isActive = false;
-
-    await Category.updateMany(
-      { _id: { $in: category.subcategories } },
-      { isActive: false }
-    );
 
     await category.save();
 
