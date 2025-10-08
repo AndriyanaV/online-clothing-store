@@ -19,7 +19,7 @@ export enum City {
   KRAGUJEVAC = "Kragujevac",
 }
 
-// Mapa grad → niz validnih poštanskih brojeva (primer)
+// City map → string of valid zip codes (example)
 export const postalCodesByCity: Record<City, string[]> = {
   [City.BEOGRAD]: ["11000", "11010", "11020", "11030", "11040"],
   [City.NOVI_SAD]: ["21000", "21001", "21002"],
@@ -27,6 +27,7 @@ export const postalCodesByCity: Record<City, string[]> = {
   [City.KRAGUJEVAC]: ["34000", "34001", "34002"],
 };
 
+//Payment methods
 export enum PaymentMethod {
   PAY_ON_DELIVERY = "Pay on delivery",
   CARD = "Card",

@@ -16,13 +16,78 @@ import {
 } from "../controllers/categoryController";
 import addCateogryNameToReqBody from "../middleware/addCategoryNameToReqBody";
 import addCateogryAndSubcatNameToReqBody from "../middleware/addCateogryAndSubcatNameToReqBodt";
+import authMiddleware from "../middleware/authMiddleware";
+import verifyRoleMiddleware from "../middleware/verifyRoleMiddleware";
+import { UserRole } from "../constants/user";
 
 const categoryRouter = express.Router();
 
-categoryRouter.post("/addMainCategoryInfo", addMainCategoryInfo);
-categoryRouter.post("/addSubcategoryInfo/:categoryId", addSubcategoryInfo);
+//Routes for user
+categoryRouter.get("/getMainCategories", getMainCategories);
+categoryRouter.get(
+  "/getSubcategoriesOfMainCategory/:categoryId",
+  getSubcategoriesOfMainCategory
+);
+categoryRouter.get("/getCategory/:categoryId", getCategory);
 
-//Local upload- Route works
+//ADMIN
+//Authentication
+categoryRouter.use(authMiddleware);
+//Authorization
+categoryRouter.use("/protected", verifyRoleMiddleware(UserRole.admin));
+//Allowed routes
+categoryRouter.post("/protected/addMainCategoryInfo", addMainCategoryInfo);
+categoryRouter.post(
+  "/protected/addSubcategoryInfo/:categoryId",
+  addSubcategoryInfo
+);
+
+//Admin can see inactive categories also
+//Need to check do I realy need two routes one for admin and one for user
+categoryRouter.get("/protected/getMainCategoriesAdmin", getMainCategoriesAdmin);
+categoryRouter.get(
+  "/protected/getSubcategoriesOfMainCategoryAdmin/:categoryId",
+  getSubcategoriesOfMainCategoryAdmin
+);
+
+categoryRouter.put(
+  "/protected/updateMainCategoryInfo/:categoryId",
+  updateMainCategoryInfo
+);
+
+//CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
+categoryRouter.post(
+  "/protected/addCategoryImageOnCloud/:categoryId",
+  addCateogryNameToReqBody,
+  addCategoryImage
+);
+categoryRouter.put(
+  "/protected/updateCategoryImage/:categoryId",
+  addCateogryNameToReqBody,
+  updateCategoryImage
+);
+
+//SUBCATEGORY ADD AND UPDATE IMAGE- CLOUDINARY
+categoryRouter.put(
+  "/protected/updateSubcateogryImage/:categoryId/:subcategoryId",
+  addCateogryAndSubcatNameToReqBody,
+  updateSubCategoryImageCloudinary
+);
+
+categoryRouter.post(
+  "/protected/addSubcategoryImage/:categoryId/:subcategoryId",
+  addCateogryAndSubcatNameToReqBody,
+  addSubCategoryImageCloudinary
+);
+
+//Soft delete by changing status
+categoryRouter.patch(
+  "/protected/deleteCategory/:categoryId",
+  softDeleteCategory
+);
+
+//For the local upload
+
 // categoryRouter.post(
 //   "/addCategoryImage/:categoryId",
 //   addCateogryNameToReqBody,
@@ -35,31 +100,6 @@ categoryRouter.post("/addSubcategoryInfo/:categoryId", addSubcategoryInfo);
 //   addSubCategoryImage
 // );
 
-// categoryRouter.post('/addCategory',addCategory);
-categoryRouter.get("/getMainCategories", getMainCategories);
-categoryRouter.get(
-  "/getSubcategoriesOfMainCategory/:categoryId",
-  getSubcategoriesOfMainCategory
-);
-categoryRouter.get("/getMainCategoriesAdmin", getMainCategoriesAdmin);
-categoryRouter.get(
-  "/getSubcategoriesOfMainCategoryAdmin/:categoryId",
-  getSubcategoriesOfMainCategoryAdmin
-);
-categoryRouter.get("/getCategory/:categoryId", getCategory);
-
-//Local Upload - Works
-// categoryRouter.put(
-//   "/updateCategoryImage/:categoryId",
-//   addCateogryNameToReqBody,
-//   updateCategoryImage
-// );
-
-categoryRouter.put(
-  "/updateMainCategoryInfo/:categoryId",
-  updateMainCategoryInfo
-);
-
 //Update Subcategory Image- Local Upload
 // categoryRouter.put(
 //   "/updateSubcateogryImage/:categoryId/:subcategoryId",
@@ -67,32 +107,11 @@ categoryRouter.put(
 //   updateSubCategoryImage
 // );
 
-//Not real delte just set isActive to false
-categoryRouter.patch("/deleteCategory/:categoryId", softDeleteCategory);
-
-//CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
-categoryRouter.post(
-  "/addCategoryImageOnCloud/:categoryId",
-  addCateogryNameToReqBody,
-  addCategoryImage
-);
-categoryRouter.put(
-  "/updateCategoryImage/:categoryId",
-  addCateogryNameToReqBody,
-  updateCategoryImage
-);
-
-//SUBCATEGORY ADD AND UPDATE IMAGE- CLOUDINARY
-categoryRouter.put(
-  "/updateSubcateogryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
-  updateSubCategoryImageCloudinary
-);
-
-categoryRouter.put(
-  "/addSubcategoryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
-  addSubCategoryImageCloudinary
-);
+//Local Upload - Works
+// categoryRouter.put(
+//   "/updateCategoryImage/:categoryId",
+//   addCateogryNameToReqBody,
+//   updateCategoryImage
+// );
 
 export default categoryRouter;

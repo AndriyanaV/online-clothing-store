@@ -1,7 +1,5 @@
 import express from "express";
 import {
-  test,
-  test2,
   register,
   login,
   emailVerification,
@@ -13,6 +11,7 @@ import authMiddleware from "../middleware/authMiddleware";
 
 const authRouter = express.Router();
 
+//Login and register routes
 authRouter.post("/register", register);
 authRouter.post("/login", login);
 

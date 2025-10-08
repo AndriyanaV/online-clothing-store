@@ -43,8 +43,6 @@ export const register = [
     req: Request<{}, {}, RegistrationBody>,
     res: Response<ApiResponse<RegistrationResponse>>
   ) => {
-    // console.log({req});
-
     const email = req.body.email;
     const password = req.body.password;
 
@@ -73,7 +71,7 @@ export const register = [
         lastName: req.body.lastName ? req.body.lastName : "",
         role: UserRole.user,
         verificationToken: verificationToken,
-        verificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        verificationTokenExpires: new Date(Date.now() + 24 * 60 * 60 * 1000), // Creates a new Date object representing exactly 24 hours (1 day) from the current time
         verifiedEmail: false,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -95,6 +93,7 @@ export const register = [
                         Verify your email
                     </a>
                 </p>
+                <p>This message is valid for 24 hours from the time it was sent.</p>
                 <p>Best regards</p>
            `;
 
@@ -117,6 +116,7 @@ export const register = [
         verificationToken: vt,
         verificationTokenExpires: vte,
         role: r,
+        resetPasswordToken: rpt,
         verifiedEmail: ve,
         ...addedUser
       } = newUser.toObject();
@@ -150,52 +150,47 @@ export const register = [
   },
 ];
 
-export const test = [
-  validateRequestWithZod(registerSchemaRules),
-  async (
-    req: Request<{}, {}, RegistrationBody>,
-    res: Response<
-      {
-        radi: string;
-      },
-      {}
-    >
-  ) => {
-    console.log(req);
+// export const test = [
+//   validateRequestWithZod(registerSchemaRules),
+//   async (
+//     req: Request<{}, {}, RegistrationBody>,
+//     res: Response<
+//       {
+//         radi: string;
+//       },
+//       {}
+//     >
+//   ) => {
+//     console.log(req);
 
-    const email = req.body?.email || "";
-    const password = req.body?.password || "";
+//     const email = req.body?.email || "";
+//     const password = req.body?.password || "";
 
-    const hashedPassword = password;
+//     const hashedPassword = password;
 
-    const newUser = new User({
-      password: hashedPassword,
-      firstName: req.body.firstName || "",
-      lastName: req.body.lastName || "",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+//     const newUser = new User({
+//       password: hashedPassword,
+//       firstName: req.body.firstName || "",
+//       lastName: req.body.lastName || "",
+//       createdAt: new Date(),
+//       updatedAt: new Date(),
+//     });
 
-    newUser.email = email;
+//     newUser.email = email;
 
-    console.log({ newUser });
+//     console.log({ newUser });
 
-    await newUser.save();
+//     await newUser.save();
 
-    res.json({ radi: "user" });
+//     res.json({ radi: "user" });
 
-    return;
-  },
-];
+//     return;
+//   },
+// ];
 
-export async function test2(req: any, res: any) {
-  return res.send("123");
-}
-
-//Login
+//Login route
 export const login = [
   validateRequestWithZod(loginSchemaRules),
-
   async (
     req: Request<{}, {}, LoginBody>,
     res: Response<ApiResponse<LoginResponse | null>>
@@ -316,7 +311,7 @@ export const emailVerification = async (
       .json(createSuccessJson("BE_email_verification_success", {}));
     return;
   } catch (error) {
-    console.error("Error verifying email:", error);
+    console.log("Error verifying email:", error);
     res
       .status(400)
       .json(
@@ -369,10 +364,11 @@ export const sendVerificationTokenAgain = [
                         Verify your email
                     </a>
                 </p>
+                <p>This message is valid for 24 hours from the time it was sent.</p>
                 <p>Best regards</p>
            `;
 
-      await sendEmail(req.body.email, "Welcome", "", emailBody);
+      await sendEmail(req.body.email, "Verify your email", "", emailBody);
       res
         .status(200)
         .json(createSuccessJson("BE_verify_profile_email_email_success", {}));
@@ -460,25 +456,22 @@ export const resetPasswordRequest = async (
 export const resetPassword = [
   validateRequestWithZod(resetPasswordBodySchema),
   async (req: Request<{}, {}, ResetPasswordBody>, res: Response) => {
+    const { token, password } = req.body;
+
+    const decoded = jwt.verify(
+      token,
+      JWT_SECRET
+    ) as ResetPasswordJWTPayload | null;
+
+    if (!decoded || !decoded.userId || !decoded.email) {
+      res
+        .status(400)
+        .json(
+          createErrorJson([{ type: "reset-password", msg: "BE_invalid_token" }])
+        );
+      return;
+    }
     try {
-      const { token, password } = req.body;
-
-      const decoded = jwt.verify(
-        token,
-        JWT_SECRET
-      ) as ResetPasswordJWTPayload | null;
-
-      if (!decoded || !decoded.userId || !decoded.email) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "reset-password", msg: "BE_invalid_token" },
-            ])
-          );
-        return;
-      }
-
       const user = await User.findOne({ resetPasswordToken: token });
       if (!user) {
         res

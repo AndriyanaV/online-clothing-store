@@ -12,11 +12,11 @@ export const validateRequestWithZod = (schema: z.ZodSchema) => {
       // Because of security
       req.body = parsedBody;
       // console.log({ nb })
-      next(); // Ako je validacija uspešna, nastavi dalje
+      next(); //continue If validation is successful
     } catch (error) {
       // Check if error is zod error
       if (error instanceof ZodError) {
-        // Ako je greška tipa ZodError, vrati validacione greške
+        // If the error is of type ZodError, return validation errors
         const zodErrors: Array<ApiError> = error.errors.map((err) => ({
           msg: err.message,
           type: "validation_error",

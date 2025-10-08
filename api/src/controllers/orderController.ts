@@ -37,141 +37,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret";
 
-// export const addOrder = [
-//   validateRequestWithZod(addOrderBodySchema),
-//   async (
-//     req: Request<{}, {}, AddOrderDto>,
-//     res: Response<ApiResponse<null | string>>
-//   ) => {
-//     const session = await mongoose.startSession();
-//     session.startTransaction();
-
-//     try {
-//       if (!req.customData?.userEmail || !req.customData?.userId) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         res
-//           .status(400)
-//           .json(createErrorJson([{ type: "order", msg: "User data missing" }]));
-//         return;
-//       }
-
-//       const itemsToAdd = req.body.items;
-
-//       const items: ItemDto[] = [];
-
-//       for (let item of itemsToAdd) {
-//         const itemToFind = await ProductVariant.findOneAndUpdate(
-//           {
-//             _id: item.variant_id, // ID dokumenta
-//             sizes: {
-//               $elemMatch: {
-//                 // traži tačno taj element u nizu
-//                 _id: item.item_id,
-//                 stock: { $gte: item.quantity },
-//               },
-//             },
-//           },
-//           {
-//             $inc: { "sizes.$.stock": -item.quantity }, // smanji stock
-//           },
-//           { new: true, session }
-//         ).populate<{
-//           product_id: { name: string; price: number; discountPrice?: number };
-//         }>("product_id", "name price discountPrice");
-
-//         console.log(itemToFind);
-
-//         if (!itemToFind) {
-//           // Ako bilo koji item nema dovoljno stock-a, rollback
-//           await session.abortTransaction();
-//           session.endSession();
-//           res
-//             .status(400)
-//             .json(
-//               createErrorJson([
-//                 { type: "order", msg: "BE_not_enough_quantity" },
-//               ])
-//             );
-//           return;
-//         }
-
-//         const product = itemToFind.product_id as any; // jer je populate
-
-//         const unitPrice = product.discountPrice ?? product.price;
-
-//         const sizeObj = itemToFind.sizes.find(
-//           (s) => s._id?.toString() === item.item_id
-//         );
-
-//         let addedItem: ItemDto = {
-//           item_id: item.item_id, // ovo je ID varijante
-//           variant_id: item.variant_id,
-//           quantity: item.quantity,
-//           price: unitPrice * item.quantity,
-//           name: product.name,
-//           color: itemToFind.color,
-//           size: sizeObj!.size,
-//           image: itemToFind.images[0],
-//         };
-
-//         items.push(addedItem);
-//       }
-
-//       // Create token for confirming order
-//       const expiresIn = jwtConfirmOrderExpiresInTime;
-
-//       const confirmOrdertoken = jwt.sign(
-//         { email: req.customData?.userEmail, UserId: req.customData?.userId },
-//         JWT_SECRET,
-//         { expiresIn }
-//       );
-
-//       //Create order
-//       const newOrder = new Order({
-//         user_id: req.customData?.userId,
-//         firstName: req.body.firstName,
-//         lastName: req.body.lastName,
-//         phoneNumber: req.body.phoneNumber,
-//         email: req.customData?.userEmail,
-//         address: req.body.address,
-//         city: req.body.city,
-//         postCode: req.body.postCode,
-//         paymentStatus: PaymentStatus.PENDING,
-//         deliveryStatus: DeliveryStatus.PENDING,
-//         items: items, // niz formiranih itema
-//         confirmationToken: confirmOrdertoken,
-//         totalPrice: items.reduce((sum, i) => sum + i.price, 0),
-//       });
-
-//       await newOrder.save({ session });
-
-//       // 3️⃣ Commit transaction
-//       await session.commitTransaction();
-//       session.endSession();
-
-//       res
-//         .status(200)
-//         .json(createSuccessJson("BE_order_created_successfully", null));
-//     } catch (error: any) {
-//       await session.abortTransaction();
-//       session.endSession();
-//       console.log(error);
-
-//       res
-//         .status(500)
-//         .json(
-//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-//         );
-//     }
-//   },
-// ];
-
 export const addOrder = [
   validateRequestWithZod(addOrderBodySchema),
   async (
     req: Request<{}, {}, AddOrderDto>,
-    res: Response<ApiResponse<null | string | AddItemDto | OrderInfo>>
+    res: Response<ApiResponse<null | string>>
   ) => {
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -187,21 +57,23 @@ export const addOrder = [
       }
 
       const itemsToAdd = req.body.items;
+
       const items: ItemDto[] = [];
 
       for (let item of itemsToAdd) {
         const itemToFind = await ProductVariant.findOneAndUpdate(
           {
-            _id: item.variant_id,
+            _id: item.variant_id, // ID dokumenta
             sizes: {
               $elemMatch: {
+                // traži tačno taj element u nizu
                 _id: item.item_id,
                 stock: { $gte: item.quantity },
               },
             },
           },
           {
-            $inc: { "sizes.$.stock": -item.quantity },
+            $inc: { "sizes.$.stock": -item.quantity }, // smanji stock
           },
           { new: true, session }
         ).populate<{
@@ -209,51 +81,29 @@ export const addOrder = [
         }>("product_id", "name price discountPrice");
 
         if (!itemToFind) {
+          // Ako bilo koji item nema dovoljno stock-a, rollback
           await session.abortTransaction();
           session.endSession();
           res
             .status(400)
             .json(
-              createErrorJson(
-                [{ type: "order", msg: "Not enough stock for item" }],
-                item
-              )
+              createErrorJson([
+                { type: "order", msg: "BE_not_enough_quantity" },
+              ])
             );
           return;
         }
 
-        const product = itemToFind.product_id as any;
+        const product = itemToFind.product_id as any; // jer je populate
+
         const unitPrice = product.discountPrice ?? product.price;
-
-        // Check price - check forned price and evetually change from admin
-        if (item.price && item.price !== unitPrice * item.quantity) {
-          await session.abortTransaction();
-          session.endSession();
-
-          const changedItem: ChangedPriceItem = {
-            item_id: item.item_id,
-            variant_id: item.variant_id,
-            quantity: item.quantity,
-            oldPrice: item.price,
-            newPrice: unitPrice * item.quantity,
-          };
-          res
-            .status(400)
-            .json(
-              createErrorJson(
-                [{ type: "order", msg: "Price change for item" }],
-                changedItem
-              )
-            );
-          return;
-        }
 
         const sizeObj = itemToFind.sizes.find(
           (s) => s._id?.toString() === item.item_id
         );
 
-        items.push({
-          item_id: item.item_id,
+        let addedItem: ItemDto = {
+          item_id: item.item_id, // ovo je ID varijante
           variant_id: item.variant_id,
           quantity: item.quantity,
           price: unitPrice * item.quantity,
@@ -261,58 +111,46 @@ export const addOrder = [
           color: itemToFind.color,
           size: sizeObj!.size,
           image: itemToFind.images[0],
-        });
+        };
+
+        items.push(addedItem);
       }
 
+      // Create token for confirming order
+      const expiresIn = jwtConfirmOrderExpiresInTime;
+
       const confirmOrdertoken = jwt.sign(
-        { email: req.customData.userEmail, userId: req.customData.userId },
+        { email: req.customData?.userEmail, UserId: req.customData?.userId },
         JWT_SECRET,
-        { expiresIn: jwtConfirmOrderExpiresInTime }
+        { expiresIn }
       );
 
+      //Create order
       const newOrder = new Order({
-        user_id: req.customData.userId,
+        user_id: req.customData?.userId,
         firstName: req.body.firstName,
         lastName: req.body.lastName,
         phoneNumber: req.body.phoneNumber,
-        email: req.customData.userEmail,
+        email: req.customData?.userEmail,
         address: req.body.address,
         city: req.body.city,
         postCode: req.body.postCode,
         paymentStatus: PaymentStatus.PENDING,
         deliveryStatus: DeliveryStatus.PENDING,
-        paymentMethod: req.body.paymentMethod,
-        items,
+        items: items, // niz formiranih itema
         confirmationToken: confirmOrdertoken,
         totalPrice: items.reduce((sum, i) => sum + i.price, 0),
       });
 
       await newOrder.save({ session });
 
-      const orderInfo: OrderInfo = {
-        _id: newOrder._id.toString(),
-        clientSecret: null,
-      };
-
-      let clientSecret: string | null = null;
-
-      if (req.body.paymentMethod === PaymentMethod.CARD) {
-        // kreiraj Stripe PaymentIntent
-        const paymentIntent = await stripe.paymentIntents.create({
-          amount: newOrder.totalPrice * 100, // u centima
-          currency: "usd", // ili RSD
-          metadata: { orderId: newOrder._id.toString() },
-        });
-        clientSecret = paymentIntent.client_secret!;
-        orderInfo.clientSecret = clientSecret;
-      }
-
+      // Commit transaction
       await session.commitTransaction();
       session.endSession();
 
       res
         .status(200)
-        .json(createSuccessJson("BE_order_created_successfully", orderInfo));
+        .json(createSuccessJson("BE_order_created_successfully", null));
     } catch (error: any) {
       await session.abortTransaction();
       session.endSession();
@@ -326,6 +164,166 @@ export const addOrder = [
     }
   },
 ];
+
+// export const addOrder = [
+//   validateRequestWithZod(addOrderBodySchema),
+//   async (
+//     req: Request<{}, {}, AddOrderDto>,
+//     res: Response<ApiResponse<null | string | AddItemDto | OrderInfo>>
+//   ) => {
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+
+//     try {
+//       if (!req.customData?.userEmail || !req.customData?.userId) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         res
+//           .status(400)
+//           .json(createErrorJson([{ type: "order", msg: "User data missing" }]));
+//         return;
+//       }
+
+//       const itemsToAdd = req.body.items;
+//       const items: ItemDto[] = [];
+
+//       for (let item of itemsToAdd) {
+//         const itemToFind = await ProductVariant.findOneAndUpdate(
+//           {
+//             _id: item.variant_id,
+//             sizes: {
+//               $elemMatch: {
+//                 _id: item.item_id,
+//                 stock: { $gte: item.quantity },
+//               },
+//             },
+//           },
+//           {
+//             $inc: { "sizes.$.stock": -item.quantity },
+//           },
+//           { new: true, session }
+//         ).populate<{
+//           product_id: { name: string; price: number; discountPrice?: number };
+//         }>("product_id", "name price discountPrice");
+
+//         if (!itemToFind) {
+//           await session.abortTransaction();
+//           session.endSession();
+//           res
+//             .status(400)
+//             .json(
+//               createErrorJson(
+//                 [{ type: "order", msg: "Not enough stock for item" }],
+//                 item
+//               )
+//             );
+//           return;
+//         }
+
+//         const product = itemToFind.product_id as any;
+//         const unitPrice = product.discountPrice ?? product.price;
+
+//         // Check price - check for price and evetually change from admin
+//         if (item.price && item.price !== unitPrice * item.quantity) {
+//           await session.abortTransaction();
+//           session.endSession();
+
+//           const changedItem: ChangedPriceItem = {
+//             item_id: item.item_id,
+//             variant_id: item.variant_id,
+//             quantity: item.quantity,
+//             oldPrice: item.price,
+//             newPrice: unitPrice * item.quantity,
+//           };
+//           res
+//             .status(400)
+//             .json(
+//               createErrorJson(
+//                 [{ type: "order", msg: "Price change for item" }],
+//                 changedItem
+//               )
+//             );
+//           return;
+//         }
+
+//         const sizeObj = itemToFind.sizes.find(
+//           (s) => s._id?.toString() === item.item_id
+//         );
+
+//         items.push({
+//           item_id: item.item_id,
+//           variant_id: item.variant_id,
+//           quantity: item.quantity,
+//           price: unitPrice * item.quantity,
+//           name: product.name,
+//           color: itemToFind.color,
+//           size: sizeObj!.size,
+//           image: itemToFind.images[0],
+//         });
+//       }
+
+//       const confirmOrdertoken = jwt.sign(
+//         { email: req.customData.userEmail, userId: req.customData.userId },
+//         JWT_SECRET,
+//         { expiresIn: jwtConfirmOrderExpiresInTime }
+//       );
+
+//       const newOrder = new Order({
+//         user_id: req.customData.userId,
+//         firstName: req.body.firstName,
+//         lastName: req.body.lastName,
+//         phoneNumber: req.body.phoneNumber,
+//         email: req.customData.userEmail,
+//         address: req.body.address,
+//         city: req.body.city,
+//         postCode: req.body.postCode,
+//         paymentStatus: PaymentStatus.PENDING,
+//         deliveryStatus: DeliveryStatus.PENDING,
+//         paymentMethod: req.body.paymentMethod,
+//         items,
+//         confirmationToken: confirmOrdertoken,
+//         totalPrice: items.reduce((sum, i) => sum + i.price, 0),
+//       });
+
+//       await newOrder.save({ session });
+
+//       const orderInfo: OrderInfo = {
+//         _id: newOrder._id.toString(),
+//         clientSecret: null,
+//       };
+
+//       let clientSecret: string | null = null;
+
+//       if (req.body.paymentMethod === PaymentMethod.CARD) {
+//         // kreiraj Stripe PaymentIntent
+//         const paymentIntent = await stripe.paymentIntents.create({
+//           amount: newOrder.totalPrice * 100, // u centima
+//           currency: "usd", // ili RSD
+//           metadata: { orderId: newOrder._id.toString() },
+//         });
+//         clientSecret = paymentIntent.client_secret!;
+//         orderInfo.clientSecret = clientSecret;
+//       }
+
+//       await session.commitTransaction();
+//       session.endSession();
+
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_order_created_successfully", orderInfo));
+//     } catch (error: any) {
+//       await session.abortTransaction();
+//       session.endSession();
+//       console.log(error);
+
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//     }
+//   },
+// ];
 
 //Update order status
 export const changeOrderStatus = [

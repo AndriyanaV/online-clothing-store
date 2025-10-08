@@ -55,6 +55,7 @@ export enum Size {
   XXXL = "XXXL",
 }
 
+//Organization of individual products based on tags in addition to categories
 export enum ProductTag {
   AUTUMN_COLLECTION = "autumn_collection",
   WINTER_COLLECTION = "winter_collection",
@@ -67,8 +68,10 @@ export enum ProductTag {
   EXCLUSIVE = "exclusive",
 }
 
+//use it to return the available tags when editing the product
 export const productTagsArray = Object.values(ProductTag);
 
+//use it to return the available colors when editing the product (want to add more colors) - first layer to avoid misakes
 export const allColorsArray = [
   ...Object.values(BaseColor),
   ...Object.values(ExtendedColor),

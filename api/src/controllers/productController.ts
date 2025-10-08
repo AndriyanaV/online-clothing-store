@@ -61,8 +61,9 @@ let uploadOptions = {
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
 };
 
-//Add product basic info
+//Dodavanje osnovnih informacija o proizvodu
 export const addProductBasicInfo = [
+  //Validacija podataka iz tela zahetva
   validateRequestWithZod(addProductBasicInfoBodySchema),
   async (
     req: Request<{}, {}, ProductBasicInfoToAddDto>,
@@ -167,14 +168,16 @@ export const addProductBasicInfo = [
   },
 ];
 
-//Add product variant basic info
+//Dodavanje osnovnih informacija o varijanti proizvoda
 export const addProductVariationInfo = [
+  //Validacija podataka iz tela zahteva
   validateRequestWithZod(productVariantSchema),
   async (
     req: Request<{}, {}, ProductVariantToAdd>,
     res: Response<ApiResponse<ProductVariantAddedDto>>
   ) => {
     try {
+      //Proveri da li varijanta vec postoji
       const existingVariant = await ProductVariant.findOne({
         product_id: req.body.product_id,
         color: req.body.color,
@@ -192,6 +195,7 @@ export const addProductVariationInfo = [
         return;
       }
 
+      //Proveri da li proizvod za koji se varijanta vezuje postoji
       const product = await Product.findOne({
         _id: req.body.product_id,
       });
@@ -207,11 +211,13 @@ export const addProductVariationInfo = [
         return;
       }
 
+      //Na osnovu informacija kreiraj SKU
       const sizesWithSKU = req.body.sizes.map((size: SizeInfoToAdd) => ({
         ...size,
         SKU: `${product.modelCode.toUpperCase()}-${req.body.color.toUpperCase()}-${size.size.toUpperCase()}`,
       }));
 
+      //Kreiranje modela za bazu
       const newProductVariant = new ProductVariant({
         product_id: req.body.product_id,
         color: req.body.color,
@@ -221,14 +227,11 @@ export const addProductVariationInfo = [
         sizes: sizesWithSKU,
       });
 
+      //Sačuvaj varijantu
       await newProductVariant.save();
 
-      console.log("Products variant info sucessfully added");
-
-      if (!product.variations.includes(newProductVariant._id)) {
-        product.variations.push(newProductVariant._id);
-        await product.save();
-      }
+      product.variations.push(newProductVariant._id);
+      await product.save();
 
       const id = newProductVariant._id.toString();
 
@@ -465,8 +468,6 @@ export const updateProductBasicInfo = [
 
       await product.save();
 
-      console.log("Products main info sucessfully updated");
-
       res
         .status(200)
         .json(
@@ -534,8 +535,6 @@ export const updateProductVariantInfo = [
         },
         { new: true, runValidators: true }
       );
-
-      console.log("Variant main info sucessfully updated");
 
       res
         .status(200)
@@ -1120,7 +1119,7 @@ export const getAllproductsBySubcategoryAdmin = async (
 };
 
 //Get available Colors For Product Variation
-export const getAvailableColorsForProductVariationasync = async (
+export const getAvailableColorsForProductVariation = async (
   req: Request<{ productId: string }, {}, {}>,
   res: Response<ApiResponse<AvailableVariantColors>>
 ) => {
