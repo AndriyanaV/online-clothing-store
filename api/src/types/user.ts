@@ -32,7 +32,9 @@ export interface UserDto extends User {
 }
 
 export interface UserInfo
-  extends Partial<Pick<User, "email" | "firstName" | "lastName" | "role">> {}
+  extends Partial<Pick<User, "email" | "firstName" | "lastName" | "role">> {
+  _id: string;
+}
 
 export interface UpdateUserBody
   extends Partial<Pick<User, "firstName" | "lastName">> {}

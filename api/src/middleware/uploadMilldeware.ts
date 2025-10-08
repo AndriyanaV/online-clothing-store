@@ -5,6 +5,7 @@ import { checkFileType, getFullUploadPath } from "../utils/uploadUtils";
 import { UPLOADS_FIELD } from "../constants/uploads";
 import { createErrorJson } from "../utils/responseWrapper";
 
+//Middleware se koristi za lokalni file upload
 export const uploadFiles = (
   options: UploadFilesOptions,
   onErrorCb?: () => void
@@ -29,7 +30,7 @@ export const uploadFiles = (
 
   const upload = multer({
     storage,
-    limits: { fileSize: options.maxFileSize }, // Limiti za veličinu datoteke
+    limits: { fileSize: options.maxFileSize }, // Limit for file size
     fileFilter: function (req, file, cb) {
       console.log(`Processing file for upload: ${file.path}`);
       checkFileType(file, cb);

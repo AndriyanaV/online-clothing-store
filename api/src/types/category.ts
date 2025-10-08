@@ -67,25 +67,8 @@ export interface UpdateSubcategoryDto
   > {}
 
 export interface AddMainCategoryDto
-  extends Omit<
-    Category,
-    | "_id"
-    | "categoryImageUrl"
-    | "isMainCategory"
-    | "subcategories"
-    | "parentCategory"
-    | "cloudinaryId"
-  > {}
+  extends Pick<Category, "name" | "description" | "isActive"> {}
 
-export interface AddSubcategoryDto
-  extends Omit<
-    Category,
-    | "_id"
-    | "categoryImageUrl"
-    | "isMainCategory"
-    | "subcategories"
-    | "parentCategory"
-    | "cloudinaryId"
-  > {}
+export interface AddSubcategoryDto extends AddMainCategoryDto {}
 
 export interface AddedCategoryInfo extends Pick<CategoryDto, "_id" | "name"> {}

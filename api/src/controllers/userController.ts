@@ -32,7 +32,9 @@ export const changdeRoleToAdmin = async (
   res: Response<ApiResponse<null>>
 ) => {
   try {
-    const user = await User.findOne({ _id: req.params.userId });
+    const userId = req.params.userId;
+
+    const user = await User.findOne({ _id: userId });
 
     if (!user) {
       res
@@ -105,7 +107,7 @@ export const updateUser = [
 
 export const getAllUsers = async (
   req: Request,
-  res: Response<ApiResponse<PublicUser[]>>
+  res: Response<ApiResponse<UserInfo[]>>
 ) => {
   try {
     const { role } = req.query;
@@ -121,7 +123,7 @@ export const getAllUsers = async (
       )
       .lean();
 
-    const usersWithStringId = users.map((user) => ({
+    const usersWithStringId: UserInfo[] = users.map((user) => ({
       ...user,
       _id: user._id.toString(),
     }));
@@ -131,7 +133,7 @@ export const getAllUsers = async (
       .json(createSuccessJson("BE_users_get_successfully", usersWithStringId));
     return;
   } catch (error: any) {
-    console.error(error);
+    console.log(error);
     res
       .status(500)
       .json(
@@ -143,7 +145,7 @@ export const getAllUsers = async (
 
 export const getUser = async (
   req: Request<{ userId: string }>,
-  res: Response<ApiResponse<PublicUser>>
+  res: Response<ApiResponse<UserInfo>>
 ) => {
   try {
     const user = await User.findOne({ _id: req.params.userId }).select(
@@ -161,7 +163,7 @@ export const getUser = async (
 
     const { _id: v, ...rest } = user.toObject();
 
-    const publicUser = {
+    const publicUser: UserInfo = {
       _id: user._id.toString(),
       ...rest,
     };
@@ -181,6 +183,7 @@ export const getUser = async (
   }
 };
 
+//Need to check
 export const deleteUser = async (
   req: Request<{ userId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
@@ -197,7 +200,7 @@ export const deleteUser = async (
 
     res
       .status(200)
-      .json(createSuccessJson("BE_users_deleted_successfully", null));
+      .json(createSuccessJson("BE_user_deleted_successfully", null));
     return;
   } catch (error: any) {
     console.error(error);

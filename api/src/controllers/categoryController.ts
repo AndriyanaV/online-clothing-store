@@ -44,7 +44,6 @@ const uploadOptions = {
 //Add cateogry  route - Add category basic info without image
 export const addMainCategoryInfo = [
   validateRequestWithZod(addMainCategoryBodySchema),
-
   async (
     req: Request<{}, {}, AddMainCategoryDto>,
     res: Response<ApiResponse<AddedCategoryInfo>>
@@ -57,7 +56,10 @@ export const addMainCategoryInfo = [
           .status(409)
           .json(
             createErrorJson([
-              { type: "category", msg: "BE_category_name_alredy_exsist" },
+              {
+                type: "category",
+                msg: "BE_category_with_this_name_alredy_exsist",
+              },
             ])
           );
         return;
@@ -91,6 +93,7 @@ export const addMainCategoryInfo = [
         );
       return;
     } catch (error: any) {
+      console.log(error);
       res
         .status(500)
         .json(
@@ -101,7 +104,7 @@ export const addMainCategoryInfo = [
   },
 ];
 
-//Add cateogry subcategory
+//Add cateogry subcategory basic info without image
 export const addSubcategoryInfo = [
   validateRequestWithZod(addSubcategoryBodySchema),
 
@@ -120,7 +123,7 @@ export const addSubcategoryInfo = [
           .status(409)
           .json(
             createErrorJson([
-              { type: "category", msg: "BE_category_not_exsist" },
+              { type: "category", msg: "BE_main_category_not_exsist" },
             ])
           );
         return;
@@ -174,6 +177,7 @@ export const addSubcategoryInfo = [
         );
       return;
     } catch (error: any) {
+      console.log(error);
       res
         .status(500)
         .json(
@@ -338,7 +342,7 @@ export const addSubcategoryInfo = [
 //   },
 // ];
 
-//Get Main Categories- for Admin
+//Get Main Categories- for Admin, return inactive one and those without images
 export const getMainCategoriesAdmin = async (
   req: Request<{}, {}, {}>,
   res: Response<ApiResponse<CategoryInfo[]>>
@@ -347,7 +351,7 @@ export const getMainCategoriesAdmin = async (
     const mainCategories = await Category.find({
       isMainCategory: true,
     })
-      .select("_id name categoryImageUrl")
+      .select("-cloudinaryId")
       .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
@@ -445,7 +449,7 @@ export const getSubcategoriesOfMainCategory = async (
       return;
     }
 
-    const retrensSubcategories: CategoryWithPopulatedSubs = {
+    const returnedSubcategories: CategoryWithPopulatedSubs = {
       ...mainCategoryWithSubcategories,
       _id: mainCategoryWithSubcategories._id.toString(),
       subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
@@ -461,7 +465,7 @@ export const getSubcategoriesOfMainCategory = async (
       .json(
         createSuccessJson<CategoryWithPopulatedSubs>(
           "BE_subcategories_of_category_fetched_successfully",
-          retrensSubcategories
+          returnedSubcategories
         )
       );
   } catch (error: any) {
@@ -475,7 +479,7 @@ export const getSubcategoriesOfMainCategory = async (
   }
 };
 
-//get all subcategories of main category- Admin see inactive also
+//get all subcategories of main category- for Admin, see inactive also
 export const getSubcategoriesOfMainCategoryAdmin = async (
   req: Request<{ categoryId: string }, {}, {}>,
   res: Response<ApiResponse<CategoryWithPopulatedSubs>>
@@ -487,9 +491,7 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
       _id: categoryId,
       isMainCategory: true,
     })
-      .select(
-        " -isMainCategory -createdAt -updatedAt -categoryImageUrl -cloudinaryId"
-      )
+      .select("-isMainCategory  -cloudinaryId")
       .populate<{ subcategories: SubcategoriesInfo[] }>({
         path: "subcategories",
         select:
@@ -509,7 +511,7 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
       return;
     }
 
-    const retrensSubcategories: CategoryWithPopulatedSubs = {
+    const returnedSubcategories: CategoryWithPopulatedSubs = {
       ...mainCategoryWithSubcategories,
       _id: mainCategoryWithSubcategories._id.toString(),
       subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
@@ -526,7 +528,7 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
       .json(
         createSuccessJson<CategoryWithPopulatedSubs>(
           "BE_subcategories_of_category_fetched_successfully",
-          retrensSubcategories
+          returnedSubcategories
         )
       );
   } catch (error: any) {
@@ -571,7 +573,7 @@ export const updateMainCategoryInfo = [
           createErrorJson([
             {
               type: "categoryUpdate",
-              msg: "category_with_this_name_alredy_exsist",
+              msg: "BE_category_with_this_name_alredy_exsist",
             },
           ])
         );
@@ -833,24 +835,26 @@ export const getCategory = async (
   try {
     const category = await Category.findOne({
       _id: req.params.categoryId,
+      isActive: true,
     })
       .select("-createdAt -updatedAt -cloudinaryId")
       .populate({
         path: "subcategories",
         select: "-createdAt -updatedAt -cloudinaryId",
       });
+
     if (!category) {
       res
         .status(400)
         .json(
-          createErrorJson([{ type: "general", msg: "category_not_exist" }])
+          createErrorJson([{ type: "category", msg: "category_not_exist" }])
         );
       return;
     }
 
     const { _id: v, ...rest } = category.toObject();
 
-    const publicCategory = {
+    const publicCategory: CategoryDto = {
       _id: category._id.toString(),
       ...rest,
     };
@@ -922,16 +926,15 @@ export const addCategoryImage = [
     req: Request<{ categoryId: string }, {}, {}>,
     res: Response<ApiResponse<null>>
   ) => {
+    const files = req.files as any[];
+
+    if (!files || files.length === 0) {
+      res
+        .status(400)
+        .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
+      return;
+    }
     try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
-        return;
-      }
-
       const category = await Category.findOne({
         _id: req.params.categoryId,
         isMainCategory: true,
@@ -974,23 +977,22 @@ export const addCategoryImage = [
   },
 ];
 
-//Cloudinary solution
+//Cloudinary solution - Update Category image
 export const updateCategoryImage = [
   uploadFilesOnCloudianry(uploadOptions),
   async (
     req: Request<{ categoryId: string }, {}, {}>,
     res: Response<ApiResponse<null>>
   ) => {
+    const files = req.files as any[];
+
+    if (!files || files.length === 0) {
+      res
+        .status(400)
+        .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
+      return;
+    }
     try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(createErrorJson([{ type: "general", msg: "no_image_sended" }]));
-        return;
-      }
-
       const category = await Category.findOne({
         _id: req.params.categoryId,
         isMainCategory: true,
@@ -1041,18 +1043,15 @@ export const addSubCategoryImageCloudinary = [
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
     res: Response<ApiResponse<null>>
   ) => {
+    const files = req.files as any[];
+
+    if (!files || files.length === 0) {
+      res
+        .status(400)
+        .json(createErrorJson([{ type: "general", msg: "image_not_sended" }]));
+      return;
+    }
     try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "image_not_sended" }])
-          );
-        return;
-      }
-
       const category = await Category.findOne({ _id: req.params.categoryId });
 
       if (!category) {
@@ -1107,18 +1106,15 @@ export const updateSubCategoryImageCloudinary = [
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
     res: Response<ApiResponse<null>>
   ) => {
+    const files = req.files as any[];
+
+    if (!files || files.length === 0) {
+      res
+        .status(400)
+        .json(createErrorJson([{ type: "general", msg: "image_not_sended" }]));
+      return;
+    }
     try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "image_not_sended" }])
-          );
-        return;
-      }
-
       const category = await Category.findOne({ _id: req.params.categoryId });
 
       if (!category) {

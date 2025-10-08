@@ -8,7 +8,7 @@ import {
   getAllproductsBySubcategory,
   getAllproductsBySubcategoryAdmin,
   getAllproductsBySubcategoryWithFilters,
-  getAvailableColorsForProductVariationasync,
+  getAvailableColorsForProductVariation,
   getProduct,
   getProductsByTag,
   getProductVariantBySku,
@@ -70,8 +70,8 @@ productRouter.get(
   getAllproductsBySubcategoryAdmin
 );
 productRouter.get(
-  "/getAvailableColorsForProductVariationasync/:productId",
-  getAvailableColorsForProductVariationasync
+  "/getAvailableColorsForProductVariation/:productId",
+  getAvailableColorsForProductVariation
 );
 productRouter.get(
   "/getAllproductsBySubcategoryWithFilters/:subcategoryId",
