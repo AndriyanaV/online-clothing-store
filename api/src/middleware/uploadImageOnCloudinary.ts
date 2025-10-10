@@ -18,29 +18,39 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET!,
 });
 
-export const uploadFilesOnCloudianry = (
+export const uploadFilesOnCloudinary = (
   options: UploadFilesOptions,
   onErrorCb?: () => void
 ) => {
-  // Kreiramo Cloudinary storage
+  // We are creating Cloudinary storage
   const storage = new CloudinaryStorage({
     cloudinary,
     params: async (req, file) => {
-      // Folder se može proslediti iz options ili req.body
-      let folder = "my_uploads"; // osnovni folder
+      // Folder can be passed from options or req.body
+      let folder = "my_uploads"; // basic folder
 
+      // Here we use the custom data provided by the previous middleware
+      // to configure Cloudinary folder structure
       if (options.uploadPath === UploadPath.PRODUCT) {
         folder += "/product";
-        // dodaj productName i variationColor ako postoje
-        const productName = req.customData?.productName || "unknown_product";
-        const variationColor =
-          req.customData?.variationColor || "default_color";
+        // add productName and variationColor if they exist - for product variation image upload
+        const productName = (req.customData?.productName || "unknown_product")
+          .trim()
+          .replace(/\s+/g, "_");
+        const variationColor = (
+          req.customData?.variationColor || "default_color"
+        )
+          .trim()
+          .replace(/\s+/g, "_");
         folder += `/${productName}/${variationColor}`;
       } else if (options.uploadPath === UploadPath.CATEGORY) {
         folder += "/category";
-        // dodaj category_name i eventualno subcategory_name
-        const categoryName =
-          req.customData?.cateogory_name || "unknown_category";
+        // add category_name and possibly subcategory_name
+        const categoryName = (
+          req.customData?.cateogory_name || "unknown_category"
+        )
+          .trim()
+          .replace(/\s+/g, "_");
         folder += `/${categoryName}`;
 
         if (req.customData?.subcategory_name) {
@@ -66,24 +76,24 @@ export const uploadFilesOnCloudianry = (
     limits: { fileSize: options.maxFileSize },
     fileFilter: (req, file, cb) => {
       try {
-        checkFileType(file, cb); //  validacija formata
+        checkFileType(file, cb); //  format validation
       } catch (err: any) {
         cb(err);
       }
     },
   });
 
-  // Biramo single ili multiple upload
+  // We choose single or multiple upload
   const uploadMiddleware =
     options.type === UploadType.MULTIPLE
       ? upload.array(UPLOADS_FIELD, 10)
       : upload.array(UPLOADS_FIELD, 1);
 
-  // Middleware koji hvata greške
+  // Middleware that catches errors
   return (req: Request, res: Response, next: NextFunction) => {
     uploadMiddleware(req, res, async (err) => {
       if (err as Error) {
-        console.error("Error during file upload:", err.message);
+        console.error("Error during file upload:", err);
         if (onErrorCb) onErrorCb();
 
         res
@@ -96,7 +106,7 @@ export const uploadFilesOnCloudianry = (
         return;
       }
 
-      // req.files sada sadrži Cloudinary objekte sa URL-ovima
+      // req.files now contains Cloudinary objects with URLs
       console.log(`Uploaded ${req.files ? req.files.length : 0} images.`);
       next();
     });

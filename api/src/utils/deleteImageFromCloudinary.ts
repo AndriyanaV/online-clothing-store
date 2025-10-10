@@ -16,12 +16,12 @@ export const deleteImageFromCloudinary = async (
 ) => {
   try {
     if (Array.isArray(publicIds)) {
-      // Briše više fajlova odjednom
+      // Deletes multiple files at once
       const result = await cloudinary.api.delete_resources(publicIds);
       console.log("Deleted multiple files:", result);
       return result;
     } else {
-      // Briše jedan fajl
+      // Deletes one file
       const result = await cloudinary.uploader.destroy(publicIds);
       console.log("Deleted single file:", result);
       return result;

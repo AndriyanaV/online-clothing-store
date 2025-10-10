@@ -22,6 +22,7 @@ import {
   UpdateMainCategoryDto,
   AddSubcategoryDto,
   UpdateSubcategoryDto,
+  AdminCategoryDto,
 } from "../types/category";
 import { request } from "http";
 import mongoose from "mongoose";
@@ -30,14 +31,14 @@ import { validateRequestWithZodAndCleanFiles } from "../middleware/validateReque
 import { updateMainCategoryBodySchema } from "../schemas/category/updateMainCateogrySchema";
 import { addSubcategoryBodySchema } from "../schemas/category/addSubcategoriesSchema";
 import { updateSubcategoryBodySchema } from "../schemas/category/updateSubcategorySchema";
-import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
+import { uploadFilesOnCloudinary } from "../middleware/uploadImageOnCloudinary";
 import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
 
 // Podešavaš opcije za upload
 const uploadOptions = {
   type: UploadType.SINGLE,
   uploadPath: UploadPath.CATEGORY,
-  maxFileSize: 5 * 1024 * 1024, // npr 5MB
+  maxFileSize: 5 * 1024 * 1024, //  5MB
 };
 
 //Add cateogry  route - Add category basic info without image
@@ -335,7 +336,7 @@ export const addSubcategoryInfo = [
 //Get Main Categories- for Admin, return inactive one and those without images
 export const getMainCategoriesAdmin = async (
   req: Request<{}, {}, {}>,
-  res: Response<ApiResponse<CategoryInfo[]>>
+  res: Response<ApiResponse<AdminCategoryDto[]>>
 ) => {
   try {
     const mainCategories = await Category.find({
@@ -344,15 +345,17 @@ export const getMainCategoriesAdmin = async (
       .select("-cloudinaryId")
       .lean();
 
-    const categoriesWithStringId = mainCategories.map((cat) => ({
-      ...cat,
-      _id: cat._id.toString(),
-    }));
+    const categoriesWithStringId: AdminCategoryDto[] = mainCategories.map(
+      (cat) => ({
+        ...cat,
+        _id: cat._id.toString(),
+      })
+    );
 
     res
       .status(201)
       .json(
-        createSuccessJson<CategoryInfo[]>(
+        createSuccessJson<AdminCategoryDto[]>(
           "BE_categories_fetch_successfully",
           categoriesWithStringId
         )
@@ -377,7 +380,7 @@ export const getMainCategories = async (
       isMainCategory: true,
       isActive: true,
     })
-      .select("_id name categoryImageUrl")
+      .select("_id name description categoryImageUrl")
       .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
@@ -432,7 +435,9 @@ export const getSubcategoriesOfMainCategory = async (
       isMainCategory: false,
       parentCategory: req.params.categoryId,
       isActive: true,
-    }).select("-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory");
+    }).select(
+      "-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory -parentCategory"
+    );
 
     if (!subcategories) {
       res.status(404).json(
@@ -473,7 +478,7 @@ export const getSubcategoriesOfMainCategory = async (
 //get all subcategories of main category- for Admin, see inactive also
 export const getSubcategoriesOfMainCategoryAdmin = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<CategoryInfo[]>>
+  res: Response<ApiResponse<AdminCategoryDto[]>>
 ) => {
   try {
     const parentCategory = await Category.findOne({
@@ -496,7 +501,7 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
     const subcategories = await Category.find({
       isMainCategory: false,
       parentCategory: req.params.categoryId,
-    }).select("-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory");
+    }).select("-cloudinaryId");
 
     if (!subcategories) {
       res.status(404).json(
@@ -510,15 +515,17 @@ export const getSubcategoriesOfMainCategoryAdmin = async (
       return;
     }
 
-    const returnedSubcategories: CategoryInfo[] = subcategories.map((sub) => ({
-      ...sub.toObject(),
-      _id: sub._id.toString(),
-    }));
+    const returnedSubcategories: AdminCategoryDto[] = subcategories.map(
+      (sub) => ({
+        ...sub.toObject(),
+        _id: sub._id.toString(),
+      })
+    );
 
     res
       .status(200)
       .json(
-        createSuccessJson<CategoryInfo[]>(
+        createSuccessJson<AdminCategoryDto[]>(
           "BE_subcategories_of_category_fetched_successfully",
           returnedSubcategories
         )
@@ -925,10 +932,10 @@ export const softDeleteCategory = async (
 
 //Add image for category - Cloudinary Upload
 export const addCategoryImage = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -944,13 +951,15 @@ export const addCategoryImage = [
         isMainCategory: true,
       });
 
-      //For now, because of the middleware, if the category doesn’t exist, we never get there.
+      //For now, because of the middleware, if the category doesn’t exist, we never get here.
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
         res
           .status(400)
           .json(
-            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+            createErrorJson([
+              { type: "general", msg: "main_category_not_exist" },
+            ])
           );
         return;
       }
@@ -960,16 +969,22 @@ export const addCategoryImage = [
 
       await category.save();
 
+      const { cloudinaryId, __v, ...rest } = category.toObject();
+
+      const returnedCategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_added_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_category_image_added_successfully",
+            returnedCategory
+          )
+        );
       return;
-      // const uploadedFiles = files.map((file) => ({
-      //   url: file.path, // ovo je već HTTPS link koji Cloudinary vraća
-      //   publicId: file.filename, // ovo je Cloudinary public_id
-      // }));
-
-      // console.log(uploadedFiles);
     } catch (error: any) {
       console.error(error);
       res
@@ -983,10 +998,10 @@ export const addCategoryImage = [
 
 //Cloudinary solution - Update Category image
 export const updateCategoryImage = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1025,9 +1040,21 @@ export const updateCategoryImage = [
         await deleteImageFromCloudinary(oldCloudId);
       }
 
+      const { cloudinaryId, __v, ...rest } = category.toObject();
+
+      const returnedCategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_update_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_category_image_update_successfully",
+            returnedCategory
+          )
+        );
       return;
     } catch (error: any) {
       console.error(error);
@@ -1041,11 +1068,10 @@ export const updateCategoryImage = [
 ];
 
 export const addSubCategoryImageCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
-
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1056,8 +1082,12 @@ export const addSubCategoryImageCloudinary = [
       return;
     }
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
+      //For now, because of the middleware, if the category doesn’t exist, we never get there.
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
         res
@@ -1089,9 +1119,21 @@ export const addSubCategoryImageCloudinary = [
 
       await subcategory.save();
 
+      const { cloudinaryId, __v, ...rest } = subcategory.toObject();
+
+      const returnedSubcategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_added_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_subcategory_image_added_successfully",
+            returnedSubcategory
+          )
+        );
     } catch (error: any) {
       console.error(error);
       res
@@ -1104,11 +1146,11 @@ export const addSubCategoryImageCloudinary = [
 ];
 
 export const updateSubCategoryImageCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
 
   async (
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1119,7 +1161,10 @@ export const updateSubCategoryImageCloudinary = [
       return;
     }
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
@@ -1159,10 +1204,20 @@ export const updateSubCategoryImageCloudinary = [
         await deleteImageFromCloudinary(oldCloudId);
       }
 
+      const { cloudinaryId, __v, ...rest } = subcategory.toObject();
+
+      const returnedSubcategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
         .json(
-          createSuccessJson("BE_category_image_updated_successfully", null)
+          createSuccessJson(
+            "BE_subcategory_image_updated_successfully",
+            returnedSubcategory
+          )
         );
     } catch (error: any) {
       console.error(error);

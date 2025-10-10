@@ -3,7 +3,7 @@ import { ApiResponse } from "../types/common";
 import { Category } from "../models/category";
 import { createErrorJson } from "../utils/responseWrapper";
 
-const addCateogryAndSubcatNameToReqBody = [
+const addCategoryAndSubcatNameToReqBody = [
   async (
     req: Request<{ categoryId: string; subcategoryId: string }, {}, any>,
     res: Response<ApiResponse<null>>,
@@ -61,4 +61,4 @@ const addCateogryAndSubcatNameToReqBody = [
   },
 ];
 
-export default addCateogryAndSubcatNameToReqBody;
+export default addCategoryAndSubcatNameToReqBody;
