@@ -13,7 +13,6 @@ import {
 import path from "path";
 import {
   CategoryInfo,
-  CategoryWithPopulatedSubs,
   SubCategoryInfo,
   SubCategory,
   CategoryDto,
@@ -23,6 +22,7 @@ import {
   UpdateMainCategoryDto,
   AddSubcategoryDto,
   UpdateSubcategoryDto,
+  AdminCategoryDto,
 } from "../types/category";
 import { request } from "http";
 import mongoose from "mongoose";
@@ -31,14 +31,14 @@ import { validateRequestWithZodAndCleanFiles } from "../middleware/validateReque
 import { updateMainCategoryBodySchema } from "../schemas/category/updateMainCateogrySchema";
 import { addSubcategoryBodySchema } from "../schemas/category/addSubcategoriesSchema";
 import { updateSubcategoryBodySchema } from "../schemas/category/updateSubcategorySchema";
-import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
+import { uploadFilesOnCloudinary } from "../middleware/uploadImageOnCloudinary";
 import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
 
 // Podešavaš opcije za upload
 const uploadOptions = {
   type: UploadType.SINGLE,
   uploadPath: UploadPath.CATEGORY,
-  maxFileSize: 5 * 1024 * 1024, // npr 5MB
+  maxFileSize: 5 * 1024 * 1024, //  5MB
 };
 
 //Add cateogry  route - Add category basic info without image
@@ -52,16 +52,14 @@ export const addMainCategoryInfo = [
       const categoryName = await Category.findOne({ name: req.body.name });
 
       if (categoryName) {
-        res
-          .status(409)
-          .json(
-            createErrorJson([
-              {
-                type: "category",
-                msg: "BE_category_with_this_name_alredy_exsist",
-              },
-            ])
-          );
+        res.status(409).json(
+          createErrorJson([
+            {
+              type: "category",
+              msg: "BE_category_with_this_name_alredy_exsist",
+            },
+          ])
+        );
         return;
       }
 
@@ -69,7 +67,6 @@ export const addMainCategoryInfo = [
         name: req.body.name,
         description: req.body.description,
         isMainCategory: true,
-        subcategories: [],
         isActive: req.body.isActive,
         parentCategory: null,
         categoryImageUrl: "",
@@ -107,7 +104,6 @@ export const addMainCategoryInfo = [
 //Add cateogry subcategory basic info without image
 export const addSubcategoryInfo = [
   validateRequestWithZod(addSubcategoryBodySchema),
-
   async (
     req: Request<{ categoryId: string }, {}, AddSubcategoryDto>,
     res: Response<ApiResponse<AddedCategoryInfo>>
@@ -149,7 +145,6 @@ export const addSubcategoryInfo = [
         name: req.body.name,
         description: req.body.description,
         isMainCategory: false,
-        subcategories: [],
         isActive: req.body.isActive,
         parentCategory: req.params.categoryId,
         categoryImageUrl: "",
@@ -158,11 +153,7 @@ export const addSubcategoryInfo = [
 
       await subcategoryToAdd.save();
 
-      category.subcategories?.push(subcategoryToAdd._id);
-
-      await category.save();
-
-      const addedMainCateogry: AddedCategoryInfo = {
+      const addedSubCateogry: AddedCategoryInfo = {
         _id: subcategoryToAdd._id.toString(),
         name: subcategoryToAdd.name,
       };
@@ -172,7 +163,7 @@ export const addSubcategoryInfo = [
         .json(
           createSuccessJson(
             "BE_subcategory_sucessfully_added",
-            addedMainCateogry
+            addedSubCateogry
           )
         );
       return;
@@ -345,7 +336,7 @@ export const addSubcategoryInfo = [
 //Get Main Categories- for Admin, return inactive one and those without images
 export const getMainCategoriesAdmin = async (
   req: Request<{}, {}, {}>,
-  res: Response<ApiResponse<CategoryInfo[]>>
+  res: Response<ApiResponse<AdminCategoryDto[]>>
 ) => {
   try {
     const mainCategories = await Category.find({
@@ -354,15 +345,17 @@ export const getMainCategoriesAdmin = async (
       .select("-cloudinaryId")
       .lean();
 
-    const categoriesWithStringId = mainCategories.map((cat) => ({
-      ...cat,
-      _id: cat._id.toString(),
-    }));
+    const categoriesWithStringId: AdminCategoryDto[] = mainCategories.map(
+      (cat) => ({
+        ...cat,
+        _id: cat._id.toString(),
+      })
+    );
 
     res
       .status(201)
       .json(
-        createSuccessJson<CategoryInfo[]>(
+        createSuccessJson<AdminCategoryDto[]>(
           "BE_categories_fetch_successfully",
           categoriesWithStringId
         )
@@ -387,7 +380,7 @@ export const getMainCategories = async (
       isMainCategory: true,
       isActive: true,
     })
-      .select("_id name categoryImageUrl")
+      .select("_id name description categoryImageUrl")
       .lean();
 
     const categoriesWithStringId = mainCategories.map((cat) => ({
@@ -417,53 +410,56 @@ export const getMainCategories = async (
 //get active subcategories of main category - for user
 export const getSubcategoriesOfMainCategory = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<CategoryWithPopulatedSubs>>
+  res: Response<ApiResponse<CategoryInfo[]>>
 ) => {
   try {
-    const categoryId = req.params.categoryId;
-
-    const mainCategoryWithSubcategories = await Category.findOne({
-      _id: categoryId,
+    const parentCategory = await Category.findOne({
+      _id: req.params.categoryId,
       isMainCategory: true,
-    })
-      .select(
-        " -isMainCategory -createdAt -updatedAt -categoryImageUrl -cloudinaryId"
-      )
-      .populate<{ subcategories: SubcategoriesInfo[] }>({
-        path: "subcategories",
-        match: { isActive: true },
-        select:
-          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
-      })
-      .lean();
+      isActive: true,
+    });
 
-    if (!mainCategoryWithSubcategories) {
+    if (!parentCategory) {
       res.status(404).json(
         createErrorJson([
           {
             type: "get-subcategories",
-            msg: "BE_category_not_found",
+            msg: "BE_main_category_not_found",
           },
         ])
       );
       return;
     }
 
-    const returnedSubcategories: CategoryWithPopulatedSubs = {
-      ...mainCategoryWithSubcategories,
-      _id: mainCategoryWithSubcategories._id.toString(),
-      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
-        (sub) => ({
-          ...sub,
-          _id: sub._id.toString(),
-        })
-      ),
-    };
+    const subcategories = await Category.find({
+      isMainCategory: false,
+      parentCategory: req.params.categoryId,
+      isActive: true,
+    }).select(
+      "-cloudinaryId -createdAt -updatedAt -isActive -isMainCategory -parentCategory"
+    );
+
+    if (!subcategories) {
+      res.status(404).json(
+        createErrorJson([
+          {
+            type: "get-subcategories",
+            msg: "BE_subcategories_not_found",
+          },
+        ])
+      );
+      return;
+    }
+
+    const returnedSubcategories: CategoryInfo[] = subcategories.map((sub) => ({
+      ...sub.toObject(),
+      _id: sub._id.toString(),
+    }));
 
     res
       .status(200)
       .json(
-        createSuccessJson<CategoryWithPopulatedSubs>(
+        createSuccessJson<CategoryInfo[]>(
           "BE_subcategories_of_category_fetched_successfully",
           returnedSubcategories
         )
@@ -482,51 +478,54 @@ export const getSubcategoriesOfMainCategory = async (
 //get all subcategories of main category- for Admin, see inactive also
 export const getSubcategoriesOfMainCategoryAdmin = async (
   req: Request<{ categoryId: string }, {}, {}>,
-  res: Response<ApiResponse<CategoryWithPopulatedSubs>>
+  res: Response<ApiResponse<AdminCategoryDto[]>>
 ) => {
   try {
-    const categoryId = req.params.categoryId;
-
-    const mainCategoryWithSubcategories = await Category.findOne({
-      _id: categoryId,
+    const parentCategory = await Category.findOne({
+      _id: req.params.categoryId,
       isMainCategory: true,
-    })
-      .select("-isMainCategory  -cloudinaryId")
-      .populate<{ subcategories: SubcategoriesInfo[] }>({
-        path: "subcategories",
-        select:
-          "-createdAt -updatedAt -subcategories -isMainCategory -cloudinaryId",
-      })
-      .lean();
+    });
 
-    if (!mainCategoryWithSubcategories) {
+    if (!parentCategory) {
       res.status(404).json(
         createErrorJson([
           {
             type: "get-subcategories",
-            msg: "BE_category_not_found",
+            msg: "BE_main_category_not_found",
           },
         ])
       );
       return;
     }
 
-    const returnedSubcategories: CategoryWithPopulatedSubs = {
-      ...mainCategoryWithSubcategories,
-      _id: mainCategoryWithSubcategories._id.toString(),
-      subcategories: (mainCategoryWithSubcategories.subcategories ?? []).map(
-        (sub) => ({
-          ...sub,
-          _id: sub._id.toString(),
-        })
-      ),
-    };
+    const subcategories = await Category.find({
+      isMainCategory: false,
+      parentCategory: req.params.categoryId,
+    }).select("-cloudinaryId");
 
-    // console.log(retrensSubcategories);
+    if (!subcategories) {
+      res.status(404).json(
+        createErrorJson([
+          {
+            type: "get-subcategories",
+            msg: "BE_subcategories_not_found",
+          },
+        ])
+      );
+      return;
+    }
+
+    const returnedSubcategories: AdminCategoryDto[] = subcategories.map(
+      (sub) => ({
+        ...sub.toObject(),
+        _id: sub._id.toString(),
+      })
+    );
+
     res
       .status(200)
       .json(
-        createSuccessJson<CategoryWithPopulatedSubs>(
+        createSuccessJson<AdminCategoryDto[]>(
           "BE_subcategories_of_category_fetched_successfully",
           returnedSubcategories
         )
@@ -550,14 +549,17 @@ export const updateMainCategoryInfo = [
     res: Response<ApiResponse<null>>
   ) => {
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
       if (!category) {
         res
           .status(400)
           .json(
             createErrorJson([
-              { type: "categoryUpdate", msg: "category_not_exist" },
+              { type: "categoryUpdate", msg: "main_category_not_exist" },
             ])
           );
         return;
@@ -565,6 +567,7 @@ export const updateMainCategoryInfo = [
 
       const categoryWithSameName = await Category.findOne({
         name: req.body.name,
+        isMainCategory: true,
         _id: { $ne: category._id },
       });
 
@@ -573,7 +576,7 @@ export const updateMainCategoryInfo = [
           createErrorJson([
             {
               type: "categoryUpdate",
-              msg: "BE_category_with_this_name_alredy_exsist",
+              msg: "BE_category_with_this_name_already_exist",
             },
           ])
         );
@@ -625,6 +628,24 @@ export const updateSubcategory = [
               { type: "categoryUpdate", msg: "subcategory_not_exist" },
             ])
           );
+        return;
+      }
+
+      const subCategoryWithSameName = await Category.findOne({
+        name: req.body.name,
+        isMainCategory: false,
+        _id: { $ne: subcategory._id },
+      });
+
+      if (subCategoryWithSameName) {
+        res.status(400).json(
+          createErrorJson([
+            {
+              type: "subcategoryUpdate",
+              msg: "BE_subcategory_with_this_name_already_exist",
+            },
+          ])
+        );
         return;
       }
 
@@ -836,12 +857,7 @@ export const getCategory = async (
     const category = await Category.findOne({
       _id: req.params.categoryId,
       isActive: true,
-    })
-      .select("-createdAt -updatedAt -cloudinaryId")
-      .populate({
-        path: "subcategories",
-        select: "-createdAt -updatedAt -cloudinaryId",
-      });
+    }).select("-createdAt -updatedAt -cloudinaryId -isActive");
 
     if (!category) {
       res
@@ -897,11 +913,6 @@ export const softDeleteCategory = async (
 
     category.isActive = false;
 
-    await Category.updateMany(
-      { _id: { $in: category.subcategories } },
-      { isActive: false }
-    );
-
     await category.save();
 
     res
@@ -921,10 +932,10 @@ export const softDeleteCategory = async (
 
 //Add image for category - Cloudinary Upload
 export const addCategoryImage = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -940,13 +951,15 @@ export const addCategoryImage = [
         isMainCategory: true,
       });
 
-      //For now, because of the middleware, if the category doesn’t exist, we never get there.
+      //For now, because of the middleware, if the category doesn’t exist, we never get here.
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
         res
           .status(400)
           .json(
-            createErrorJson([{ type: "general", msg: "category_not_exist" }])
+            createErrorJson([
+              { type: "general", msg: "main_category_not_exist" },
+            ])
           );
         return;
       }
@@ -956,16 +969,22 @@ export const addCategoryImage = [
 
       await category.save();
 
+      const { cloudinaryId, __v, ...rest } = category.toObject();
+
+      const returnedCategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_added_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_category_image_added_successfully",
+            returnedCategory
+          )
+        );
       return;
-      // const uploadedFiles = files.map((file) => ({
-      //   url: file.path, // ovo je već HTTPS link koji Cloudinary vraća
-      //   publicId: file.filename, // ovo je Cloudinary public_id
-      // }));
-
-      // console.log(uploadedFiles);
     } catch (error: any) {
       console.error(error);
       res
@@ -979,10 +998,10 @@ export const addCategoryImage = [
 
 //Cloudinary solution - Update Category image
 export const updateCategoryImage = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1021,9 +1040,21 @@ export const updateCategoryImage = [
         await deleteImageFromCloudinary(oldCloudId);
       }
 
+      const { cloudinaryId, __v, ...rest } = category.toObject();
+
+      const returnedCategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_update_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_category_image_update_successfully",
+            returnedCategory
+          )
+        );
       return;
     } catch (error: any) {
       console.error(error);
@@ -1037,11 +1068,10 @@ export const updateCategoryImage = [
 ];
 
 export const addSubCategoryImageCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
-
+  uploadFilesOnCloudinary(uploadOptions),
   async (
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1052,8 +1082,12 @@ export const addSubCategoryImageCloudinary = [
       return;
     }
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
+      //For now, because of the middleware, if the category doesn’t exist, we never get there.
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
         res
@@ -1085,9 +1119,21 @@ export const addSubCategoryImageCloudinary = [
 
       await subcategory.save();
 
+      const { cloudinaryId, __v, ...rest } = subcategory.toObject();
+
+      const returnedSubcategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
-        .json(createSuccessJson("BE_category_image_added_successfully", null));
+        .json(
+          createSuccessJson(
+            "BE_subcategory_image_added_successfully",
+            returnedSubcategory
+          )
+        );
     } catch (error: any) {
       console.error(error);
       res
@@ -1100,11 +1146,11 @@ export const addSubCategoryImageCloudinary = [
 ];
 
 export const updateSubCategoryImageCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
 
   async (
     req: Request<{ categoryId: string; subcategoryId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<AdminCategoryDto>>
   ) => {
     const files = req.files as any[];
 
@@ -1115,7 +1161,10 @@ export const updateSubCategoryImageCloudinary = [
       return;
     }
     try {
-      const category = await Category.findOne({ _id: req.params.categoryId });
+      const category = await Category.findOne({
+        _id: req.params.categoryId,
+        isMainCategory: true,
+      });
 
       if (!category) {
         await deleteImageFromCloudinary(files[0].filename);
@@ -1155,10 +1204,20 @@ export const updateSubCategoryImageCloudinary = [
         await deleteImageFromCloudinary(oldCloudId);
       }
 
+      const { cloudinaryId, __v, ...rest } = subcategory.toObject();
+
+      const returnedSubcategory: AdminCategoryDto = {
+        ...rest,
+        _id: category._id.toString(),
+      };
+
       res
         .status(200)
         .json(
-          createSuccessJson("BE_category_image_updated_successfully", null)
+          createSuccessJson(
+            "BE_subcategory_image_updated_successfully",
+            returnedSubcategory
+          )
         );
     } catch (error: any) {
       console.error(error);

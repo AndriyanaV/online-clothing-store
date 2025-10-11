@@ -4,7 +4,6 @@ export interface Category {
   _id?: Types.ObjectId;
   name: string;
   isMainCategory: boolean;
-  subcategories?: Array<Types.ObjectId>;
   description: string;
   categoryImageUrl: string;
   cloudinaryId: string;
@@ -18,10 +17,9 @@ export interface SubCategory {
   isMainCategory: string;
   description: string;
   categoryImageUrl: string;
-  subcategories?: Category[];
 }
 
-export interface CategoryDto extends Omit<Category, "_id"> {
+export interface CategoryDto extends Omit<Category, "_id" | "cloudinaryId"> {
   _id: string;
 }
 
@@ -29,6 +27,8 @@ export interface CategoryInfo
   extends Pick<Category, "name" | "description" | "categoryImageUrl"> {
   _id: string;
 }
+
+export interface AdminCategoryDto extends CategoryDto {}
 
 export interface SubCategoryInfo extends Pick<CategoryInfo, "description"> {}
 
@@ -38,32 +38,25 @@ export interface SubcategoriesInfo
     "_id" | "name" | "description" | "categoryImageUrl"
   > {}
 
-export interface CategoryWithPopulatedSubs
-  extends Omit<
-    Pick<CategoryDto, "_id" | "name" | "description" | "subcategories">,
-    "subcategories"
-  > {
-  subcategories: SubcategoriesInfo[];
-}
+// export interface CategoryWithPopulatedSubs
+//   extends Omit<
+//     Pick<CategoryDto, "_id" | "name" | "description">,
+//     "subcategories"
+//   > {
+//   subcategories: SubcategoriesInfo[];
+// }
 
 export interface UpdateMainCategoryDto
   extends Partial<
     Omit<
       Category,
-      | "_id"
-      | "categoryImageUrl"
-      | "isMainCategory"
-      | "subcategories"
-      | "cloudinaryId"
+      "_id" | "categoryImageUrl" | "isMainCategory" | "cloudinaryId"
     >
   > {}
 
 export interface UpdateSubcategoryDto
   extends Partial<
-    Omit<
-      Category,
-      "_id" | "categoryImageUrl" | "isMainCategory" | "subcategories"
-    >
+    Omit<Category, "_id" | "categoryImageUrl" | "isMainCategory">
   > {}
 
 export interface AddMainCategoryDto

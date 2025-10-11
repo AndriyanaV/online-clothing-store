@@ -14,8 +14,6 @@ import orderRouter from "./routes/order";
 
 dotenv.config();
 
-// config();
-
 const server = express();
 const httpServer = createServer(server);
 

@@ -12,13 +12,14 @@ import {
   softDeleteCategory,
   updateCategoryImage,
   updateMainCategoryInfo,
+  updateSubcategory,
   updateSubCategoryImageCloudinary,
 } from "../controllers/categoryController";
-import addCateogryNameToReqBody from "../middleware/addCategoryNameToReqBody";
-import addCateogryAndSubcatNameToReqBody from "../middleware/addCateogryAndSubcatNameToReqBodt";
 import authMiddleware from "../middleware/authMiddleware";
 import verifyRoleMiddleware from "../middleware/verifyRoleMiddleware";
 import { UserRole } from "../constants/user";
+import addCategoryAndSubcatNameToReqBody from "../middleware/addCateogryAndSubcatNameToReqBodt";
+import addCategoryNameToReqBody from "../middleware/addCategoryNameToReqBody";
 
 const categoryRouter = express.Router();
 
@@ -54,30 +55,34 @@ categoryRouter.put(
   "/protected/updateMainCategoryInfo/:categoryId",
   updateMainCategoryInfo
 );
+categoryRouter.put(
+  "/protected/updateSubcategoryMainInfo/:subcategoryId",
+  updateSubcategory
+);
 
 //CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
 categoryRouter.post(
   "/protected/addCategoryImageOnCloud/:categoryId",
-  addCateogryNameToReqBody,
+  addCategoryNameToReqBody,
   addCategoryImage
 );
 categoryRouter.put(
   "/protected/updateCategoryImage/:categoryId",
-  addCateogryNameToReqBody,
+  addCategoryNameToReqBody,
   updateCategoryImage
 );
 
 //SUBCATEGORY ADD AND UPDATE IMAGE- CLOUDINARY
-categoryRouter.put(
-  "/protected/updateSubcateogryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
-  updateSubCategoryImageCloudinary
-);
-
 categoryRouter.post(
   "/protected/addSubcategoryImage/:categoryId/:subcategoryId",
-  addCateogryAndSubcatNameToReqBody,
+  addCategoryAndSubcatNameToReqBody,
   addSubCategoryImageCloudinary
+);
+
+categoryRouter.put(
+  "/protected/updateSubcateogryImage/:categoryId/:subcategoryId",
+  addCategoryAndSubcatNameToReqBody,
+  updateSubCategoryImageCloudinary
 );
 
 //Soft delete by changing status

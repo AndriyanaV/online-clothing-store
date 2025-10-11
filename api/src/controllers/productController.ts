@@ -51,7 +51,7 @@ import { addProductTagBodySchema } from "../schemas/product/addProductTag";
 import { addVariationSizeBodySchema } from "../schemas/product/addVariationSizeSchema";
 import { deleteVariantFolder } from "../utils/deteteVariantFolder";
 import { parentPort } from "worker_threads";
-import { uploadFilesOnCloudianry } from "../middleware/uploadImageOnCloudinary";
+import { uploadFilesOnCloudinary } from "../middleware/uploadImageOnCloudinary";
 import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
 
 //Upload options
@@ -1659,7 +1659,7 @@ export const getAllproductsBySubcategoryWithFilters = async (
 
 //CLOUDINARY
 export const addProductVariationPicsCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
 
   async (
     req: Request<{ variationId: string; productId: string }, {}, {}>,
@@ -1738,7 +1738,7 @@ export const addProductVariationPicsCloudinary = [
 
 //CLOUDINARY
 export const updateProductVariationPicsCloudinary = [
-  uploadFilesOnCloudianry(uploadOptions),
+  uploadFilesOnCloudinary(uploadOptions),
 
   async (
     req: Request<{ variationId: string; productId: string }, {}, {}>,
