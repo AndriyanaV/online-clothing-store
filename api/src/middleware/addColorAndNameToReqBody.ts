@@ -13,6 +13,18 @@ const addColorAndNameToReqBody = [
     next: NextFunction
   ) => {
     try {
+      const product = await Product.findOne({ _id: req.params.productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addVariationImg", msg: "product_not_found" },
+            ])
+          );
+        return;
+      }
       const variation = await ProductVariant.findOne({
         _id: req.params.variationId,
         product_id: req.params.productId,
@@ -24,19 +36,6 @@ const addColorAndNameToReqBody = [
           .json(
             createErrorJson([
               { type: "addVariationImg", msg: "variation_not_found" },
-            ])
-          );
-        return;
-      }
-
-      const product = await Product.findOne({ _id: req.params.productId });
-
-      if (!product) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addVariationImg", msg: "product_not_found" },
             ])
           );
         return;

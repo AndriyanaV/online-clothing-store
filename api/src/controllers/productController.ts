@@ -21,13 +21,15 @@ import {
   ProductVariantDto,
   ProductVariantToAdd,
   ProductVariantToUpdateDto,
+  ProductVariantUpdatedDto,
   SizeInfo,
   SizeInfoToAdd,
   TagsToAdd,
+  UpdatedProductInfo,
   VariantSizeInfo,
   VariationFilter,
 } from "../types/product";
-import { productVariantSchema } from "../schemas/product/addProductVariant";
+import { productVariationSchema } from "../schemas/product/addProductVariant";
 import { ProductVariant } from "../models/productVariant";
 import path from "path";
 import { addProductVariantPhotoBodySchema } from "../schemas/product/addProductVariantPhoto";
@@ -47,12 +49,15 @@ import {
   productTagsArray,
   Size,
 } from "../constants/product";
-import { addProductTagBodySchema } from "../schemas/product/addProductTag";
+import { addProductTagsBodySchema } from "../schemas/product/addProductTag";
 import { addVariationSizeBodySchema } from "../schemas/product/addVariationSizeSchema";
 import { deleteVariantFolder } from "../utils/deteteVariantFolder";
 import { parentPort } from "worker_threads";
 import { uploadFilesOnCloudinary } from "../middleware/uploadImageOnCloudinary";
 import { deleteImageFromCloudinary } from "../utils/deleteImageFromCloudinary";
+import { buildProductFilter } from "../utils/buildProductFilter";
+import { buildVariationFilter } from "../utils/buildVariationFilter";
+import { sortFilter } from "../utils/buildSortFilter";
 
 //Upload options
 let uploadOptions = {
@@ -61,9 +66,9 @@ let uploadOptions = {
   maxFileSize: 5 * 1024 * 1024, // npr 5MB
 };
 
-//Dodavanje osnovnih informacija o proizvodu
+//Adding basic product information
 export const addProductBasicInfo = [
-  //Validacija podataka iz tela zahetva
+  //Data validation from the requirements body
   validateRequestWithZod(addProductBasicInfoBodySchema),
   async (
     req: Request<{}, {}, ProductBasicInfoToAddDto>,
@@ -101,15 +106,15 @@ export const addProductBasicInfo = [
         return;
       }
 
-      const subcateogryIds = req.body.subcategory;
+      const subcategoryIds = req.body.subcategory;
 
-      const subcategory = await Category.find({
-        _id: { $in: subcateogryIds },
+      const subcategories = await Category.find({
+        _id: { $in: subcategoryIds },
         isMainCategory: false,
         parentCategory: req.body.category,
       });
 
-      if (!subcategory || subcategory.length !== subcateogryIds.length) {
+      if (!subcategories || subcategories.length !== subcategoryIds.length) {
         res
           .status(400)
           .json(
@@ -132,19 +137,24 @@ export const addProductBasicInfo = [
         discountPrice: req.body.discountPrice ? req.body.discountPrice : null,
         modelCode: req.body.modelCode,
         productTag: req.body.productTag,
-        variations: [],
         isActive: req.body.isActive,
       });
 
       await newProduct.save();
 
-      console.log("Products main info sucessfully added");
+      const {
+        _id,
+        __v,
+        category: productCategory,
+        subcategory: productSubcategory,
+        ...rest
+      } = newProduct.toObject();
 
-      const id = newProduct._id.toString();
-
-      const addedProductInfo = {
-        _id: id,
-        name: newProduct.name,
+      const addedProductInfo: AddedProductInfo = {
+        _id: newProduct._id.toString(),
+        category: productCategory.toString(),
+        subcategory: productSubcategory.map((_id) => _id.toString()),
+        ...rest,
       };
 
       res
@@ -168,16 +178,32 @@ export const addProductBasicInfo = [
   },
 ];
 
-//Dodavanje osnovnih informacija o varijanti proizvoda
+//Adding basic information about the product variant
 export const addProductVariationInfo = [
-  //Validacija podataka iz tela zahteva
-  validateRequestWithZod(productVariantSchema),
+  //Validation of data from the request body
+  validateRequestWithZod(productVariationSchema),
   async (
     req: Request<{}, {}, ProductVariantToAdd>,
     res: Response<ApiResponse<ProductVariantAddedDto>>
   ) => {
     try {
-      //Proveri da li varijanta vec postoji
+      //Check if the product to which the variant is linked exists
+      const product = await Product.findOne({
+        _id: req.body.product_id,
+      });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addProductVariantInfo", msg: "BE_product_not_exists" },
+            ])
+          );
+        return;
+      }
+
+      //Check if the variant already exists
       const existingVariant = await ProductVariant.findOne({
         product_id: req.body.product_id,
         color: req.body.color,
@@ -195,30 +221,14 @@ export const addProductVariationInfo = [
         return;
       }
 
-      //Proveri da li proizvod za koji se varijanta vezuje postoji
-      const product = await Product.findOne({
-        _id: req.body.product_id,
-      });
-
-      if (!product) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addProductVariantInfo", msg: "BE_product_not_exists" },
-            ])
-          );
-        return;
-      }
-
-      //Na osnovu informacija kreiraj SKU
+      //Based on the information, create a SKU
       const sizesWithSKU = req.body.sizes.map((size: SizeInfoToAdd) => ({
         ...size,
         SKU: `${product.modelCode.toUpperCase()}-${req.body.color.toUpperCase()}-${size.size.toUpperCase()}`,
       }));
 
-      //Kreiranje modela za bazu
-      const newProductVariant = new ProductVariant({
+      //Creating a model for the database
+      const newProductVariation = new ProductVariant({
         product_id: req.body.product_id,
         color: req.body.color,
         images: [],
@@ -227,17 +237,16 @@ export const addProductVariationInfo = [
         sizes: sizesWithSKU,
       });
 
-      //Sačuvaj varijantu
-      await newProductVariant.save();
+      //Save variation
+      await newProductVariation.save();
 
-      product.variations.push(newProductVariant._id);
-      await product.save();
+      const { _id, cloudinaryIds, product_id, ...rest } =
+        newProductVariation.toObject();
 
-      const id = newProductVariant._id.toString();
-
-      const addedProductVariantInfo = {
-        _id: id,
-        color: newProductVariant.color,
+      const addedProductVariantInfo: ProductVariantAddedDto = {
+        _id: _id.toString(),
+        product_id: product_id.toString(),
+        ...rest,
       };
 
       res
@@ -261,85 +270,100 @@ export const addProductVariationInfo = [
   },
 ];
 
-//Add product variation image - Local Upload Wokrs
-// export const addProductVariationPics = [
-//   uploadFiles(uploadOptions),
+//CLOUDINARY
+export const addProductVariationPicsCloudinary = [
+  uploadFilesOnCloudinary(uploadOptions),
+  async (
+    req: Request<{ variationId: string; productId: string }, {}, {}>,
+    res: Response<ApiResponse<ProductVariantAddedDto>>
+  ) => {
+    try {
+      const files = req.files as any[];
 
-//   async (
-//     req: Request<{ variationId: string; productId: string }, {}, {}>,
-//     res: Response<ApiResponse<null>>
-//   ) => {
-//     try {
-//       const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+          );
+        return;
+      }
 
-//       if (!files || files.length === 0) {
-//         res
-//           .status(400)
-//           .json(
-//             createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
-//           );
-//         return;
-//       }
-//       const variation = await ProductVariant.findOne({
-//         _id: req.params.variationId,
-//       });
+      let imageUrls: string[] = [];
+      let cloudianryIds: string[] = [];
 
-//       if (!variation) {
-//         res
-//           .status(400)
-//           .json(
-//             createErrorJson([
-//               { type: "addCategory", msg: "BE_variation_not_found" },
-//             ])
-//           );
-//         return;
-//       }
+      imageUrls = files.map((file) => file.path);
 
-//       const productId = req.params.productId;
+      cloudianryIds = files.map((file) => file.filename);
 
-//       const product = await Product.findOne({ _id: productId });
+      const variation = await ProductVariant.findOne({
+        _id: req.params.variationId,
+        product_id: req.params.productId,
+      });
 
-//       if (!product) {
-//         res
-//           .status(400)
-//           .json(
-//             createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
-//           );
-//         return;
-//       }
+      if (!variation) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
 
-//       let imageUrls: string[] = [];
+      const productId = req.params.productId;
 
-//       imageUrls = files.map((file) =>
-//         path.relative("uploads", file.path).replace(/\\/g, "/")
-//       );
+      const product = await Product.findOne({ _id: productId });
 
-//       variation.images = variation.images
-//         ? [...variation.images, ...imageUrls]
-//         : imageUrls;
+      if (!product) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+          );
+        return;
+      }
 
-//       await variation.save();
+      variation.images = imageUrls;
+      variation.cloudinaryIds = cloudianryIds;
 
-//       res
-//         .status(200)
-//         .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
-//       return;
-//     } catch (error: any) {
-//       console.error(error);
-//       res
-//         .status(500)
-//         .json(
-//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-//         );
-//       return;
-//     }
-//   },
-// ];
+      await variation.save();
+
+      const { _id, cloudinaryIds, product_id, ...rest } = variation.toObject();
+
+      const addedVariation: ProductVariantAddedDto = {
+        _id: variation._id.toHexString(),
+        product_id: variation.product_id.toString(),
+        ...rest,
+      };
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson(
+            "BE_variant_image_added_sucessfully",
+            addedVariation
+          )
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
 
 //Add variation size
 export const addVariationSize = [
   validateRequestWithZod(addVariationSizeBodySchema),
-
   async (
     req: Request<{ variationId: string; productId: string }, {}, SizeInfoToAdd>,
     res: Response<ApiResponse<null>>
@@ -413,14 +437,64 @@ export const addVariationSize = [
   },
 ];
 
-//Update
+//Add product tag
+export const addTagsToProduct = [
+  validateRequestWithZod(addProductTagsBodySchema),
+  async (
+    req: Request<{ productId: string }, {}, TagsToAdd>,
+    res: Response<ApiResponse<null>>
+  ) => {
+    try {
+      const product = await Product.findOne({ _id: req.params.productId });
+
+      if (!product) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "getProducts", msg: "BE_product_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      const tagsToAdd: ProductTag[] = req.body.tags;
+
+      product.productTag = product.productTag || [];
+
+      //Check if any tag ec exists
+      const existingTags = new Set(product.productTag);
+
+      for (const tag of tagsToAdd) {
+        if (!existingTags.has(tag)) {
+          product.productTag.push(tag);
+        }
+      }
+
+      await product.save();
+
+      res
+        .status(200)
+        .json(createSuccessJson("BE_tag(s)_added_sucessfully", null));
+    } catch (error: any) {
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//UPDATE
 
 //Update basic info about product
 export const updateProductBasicInfo = [
   validateRequestWithZod(updateProductBasicInfoBodySchema),
   async (
     req: Request<{ productId: string }, {}, ProductBasicInfoToAddDto>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<UpdatedProductInfo>>
   ) => {
     try {
       const product = await Product.findOne({ _id: req.params.productId });
@@ -468,10 +542,22 @@ export const updateProductBasicInfo = [
 
       await product.save();
 
+      const { _id, category, subcategory, ...rest } = product.toObject();
+
+      const updatedProductInfo: UpdatedProductInfo = {
+        _id: product._id.toString(),
+        category: category.toString(),
+        subcategory: subcategory.map((_id) => _id.toString()),
+        ...rest,
+      };
+
       res
         .status(200)
         .json(
-          createSuccessJson("BE_product_basic_info_updated_successfully", null)
+          createSuccessJson(
+            "BE_product_basic_info_updated_successfully",
+            updatedProductInfo
+          )
         );
       return;
     } catch (error: any) {
@@ -491,7 +577,7 @@ export const updateProductVariantInfo = [
   validateRequestWithZod(updateProductVariantInfoBodySchema),
   async (
     req: Request<{ variantId: string }, {}, ProductVariantToUpdateDto>,
-    res: Response<ApiResponse<null>>
+    res: Response<ApiResponse<ProductVariantUpdatedDto>>
   ) => {
     try {
       const variant = await ProductVariant.findOne({
@@ -536,10 +622,33 @@ export const updateProductVariantInfo = [
         { new: true, runValidators: true }
       );
 
+      if (!updatedVariant) {
+        res
+          .status(404)
+          .json(
+            createErrorJson([
+              { type: "updateVariant", msg: "BE_variant_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const { _id, product_id, cloudinaryIds, ...rest } =
+        updatedVariant.toObject();
+
+      const updatedVariantInfo: ProductVariantUpdatedDto = {
+        _id: _id.toString(),
+        product_id: product_id.toString(),
+        ...rest,
+      };
+
       res
         .status(200)
         .json(
-          createSuccessJson("BE_variant_basic_info_updated_successfully", null)
+          createSuccessJson(
+            "BE_variant_basic_info_updated_successfully",
+            updatedVariantInfo
+          )
         );
       return;
     } catch (error: any) {
@@ -554,6 +663,105 @@ export const updateProductVariantInfo = [
   },
 ];
 
+//CLOUDINARY
+export const updateProductVariationPicsCloudinary = [
+  uploadFilesOnCloudinary(uploadOptions),
+  async (
+    req: Request<{ variationId: string; productId: string }, {}, {}>,
+    res: Response<ApiResponse<ProductVariantUpdatedDto>>
+  ) => {
+    try {
+      const files = req.files as any[];
+
+      if (!files || files.length === 0) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+          );
+        return;
+      }
+
+      let imageUrls: string[] = [];
+      let cloudianryIds: string[] = [];
+
+      imageUrls = files.map((file) => file.path);
+
+      cloudianryIds = files.map((file) => file.filename);
+
+      const variation = await ProductVariant.findOne({
+        _id: req.params.variationId,
+        product_id: req.params.productId,
+      });
+
+      //Because of the middleware we will catch this error before we get here
+      if (!variation) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "addCategory", msg: "BE_variation_not_found" },
+            ])
+          );
+        return;
+      }
+
+      const productId = req.params.productId;
+
+      const product = await Product.findOne({ _id: productId });
+
+      //Because of the middleware we will catch this error before we get here
+      if (!product) {
+        await deleteImageFromCloudinary(imageUrls);
+        res
+          .status(400)
+          .json(
+            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+          );
+        return;
+      }
+
+      const odlUrls = variation.images;
+      const olsCloudinaryIds = variation.cloudinaryIds;
+
+      variation.images = imageUrls;
+      variation.cloudinaryIds = cloudianryIds;
+
+      await variation.save();
+
+      await deleteImageFromCloudinary(olsCloudinaryIds);
+
+      const { _id, product_id, cloudinaryIds, ...rest } = variation.toObject();
+
+      const updatedVariantInfo: ProductVariantUpdatedDto = {
+        _id: _id.toString(),
+        product_id: product_id.toString(),
+        ...rest,
+      };
+
+      res
+        .status(200)
+        .json(
+          createSuccessJson(
+            "BE_variant_image_updated_sucessfully",
+            updatedVariantInfo
+          )
+        );
+      return;
+    } catch (error: any) {
+      console.error(error);
+      res
+        .status(500)
+        .json(
+          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+        );
+      return;
+    }
+  },
+];
+
+//Local upload
 //Update variant image
 // export const updateProductVariationPics = [
 //   uploadFiles(uploadOptions),
@@ -631,65 +839,229 @@ export const updateProductVariantInfo = [
 //   },
 // ];
 
-//Read
-
-//get all products by subcategory - for users
-//Products without any variants with images are treated as drafts and are not shown to the user.
-export const getAllproductsBySubcategory = async (
-  req: Request<{ subcategoryId: string }, {}, {}>,
-  res: Response<ApiResponse<ProductDto[]>>
+//READ
+export const getAllProducts = async (
+  req: Request<
+    {},
+    {},
+    {},
+    {
+      categoryId?: string;
+      subcategoryId?: string;
+      tag?: string;
+      material?: Material;
+      discountPrice?: string;
+      minPrice?: string;
+      maxPrice?: string;
+      color?: BaseColor | ExtendedColor;
+      size?: Size;
+      sortOption?: "asc" | "desc";
+      page?: string;
+      limit?: string;
+    }
+  >,
+  res: Response<ApiResponse<ProductsResponseDto>>
 ) => {
   try {
-    const subcategory = await Category.findOne({
-      _id: req.params.subcategoryId,
-      isMainCategory: false,
-    });
+    const {
+      categoryId,
+      subcategoryId,
+      tag,
+      color,
+      size,
+      sortOption,
+      maxPrice,
+      minPrice,
+      discountPrice,
+      material,
+    } = req.query;
 
-    if (!subcategory) {
+    const matchFilter: any = { isActive: true };
+
+    if (!subcategoryId && !categoryId && !tag) {
       res
         .status(400)
         .json(
           createErrorJson([
-            { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+            { type: "getProducts", msg: "BE_no_match_selected" },
           ])
         );
       return;
     }
 
-    const products = await Product.aggregate([
+    if (subcategoryId) {
+      const subcategory = await Category.findOne({
+        _id: subcategoryId,
+        isMainCategory: false,
+      });
+
+      if (!subcategory) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      matchFilter.subcategory = new mongoose.Types.ObjectId(subcategoryId);
+    }
+
+    if (tag) {
+      matchFilter.productTag = {
+        $in: Array.isArray(req.query.tag) ? req.query.tag : [req.query.tag],
+      };
+    }
+
+    if (categoryId) {
+      const category = await Category.findOne({
+        _id: categoryId,
+        isMainCategory: true,
+      });
+
+      if (!category) {
+        res
+          .status(400)
+          .json(
+            createErrorJson([
+              { type: "getProducts", msg: "BE_category_not_exsist" },
+            ])
+          );
+        return;
+      }
+
+      //Include category as a secondary filter only when a tag or subcategory is provided. Does not list products by category alone
+      if (tag || subcategoryId) {
+        matchFilter.category = new mongoose.Types.ObjectId(categoryId);
+      }
+    }
+
+    // Filters for product
+    const productFilter = buildProductFilter({
+      material,
+      discountPrice,
+      minPrice,
+      maxPrice,
+    });
+
+    // Filters for variation
+    const variationFilter = buildVariationFilter({ color, size });
+
+    //Pagination options
+    const pageNum = parseInt(req.query.page || "1");
+    const limitNum = parseInt(req.query.limit || "30");
+    const skip = (pageNum - 1) * limitNum;
+
+    //Sort Filter
+    const discount = discountPrice === "true";
+    const sortQuery = sortFilter({ discount, sortOption });
+    // Aggregation
+    const pipeline = [
+      // Filter products by subcategory and basic filters
       {
         $match: {
-          subcategory: new mongoose.Types.ObjectId(req.params.subcategoryId),
-          isActive: true,
+          ...matchFilter,
+          ...productFilter,
         },
       },
+
+      // Join product and variant
       {
         $lookup: {
           from: "productvariants",
-          localField: "variations",
-          foreignField: "_id",
+          localField: "_id",
+          foreignField: "product_id",
           as: "variations",
-          pipeline: [
-            {
-              $match: {
-                images: { $exists: true, $ne: [] },
-                isActive: true, // dodaje filtriranje po vidljivosti varijante
+        },
+      },
+
+      // Variant filter
+      {
+        $addFields: {
+          variations: {
+            $filter: {
+              input: "$variations",
+              as: "v",
+              cond: {
+                $and: [
+                  // only active ones
+                  { $eq: ["$$v.isActive", true] },
+                  // varijanta mora imati slike
+                  { $gt: [{ $size: "$$v.images" }, 0] },
+                  // Color filter
+                  ...(variationFilter.color
+                    ? [{ $eq: ["$$v.color", variationFilter.color] }]
+                    : []),
+                  // Size filter
+                  ...(variationFilter.size
+                    ? [
+                        {
+                          $anyElementTrue: {
+                            $map: {
+                              input: "$$v.sizes", // goes through all size variants
+                              as: "s",
+                              in: {
+                                $eq: ["$$s.size", variationFilter.size],
+                              },
+                            },
+                          },
+                        },
+                      ]
+                    : []),
+                ],
               },
             },
+          },
+        },
+      },
+
+      // Remove products that do not have any variants after filtering
+      { $match: { variations: { $ne: [] } } },
+
+      // Sort
+      { $sort: sortQuery },
+
+      // Pagination and counting of total products
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limitNum },
             {
               $project: {
-                cloudianryIds: 0, // ovo uklanja polje
+                _id: 1,
+                name: 1,
+                price: 1,
+                discountPrice: 1,
+                category: 1,
+                subcategory: 1,
+                material: 1,
+                variations: {
+                  _id: 1,
+                  color: 1,
+                  sizes: 1,
+                  images: 1,
+                  isActive: 1,
+                },
               },
             },
           ],
+          totalCount: [{ $count: "count" }],
         },
       },
-      {
-        $match: { "variations.0": { $exists: true } }, // zadrži samo proizvode koji imaju bar 1 variant sa slikama
-      },
-    ]);
+    ];
 
-    const productsDto: ProductDto[] = products.map((p) => ({
+    const result = await Product.aggregate(pipeline);
+
+    const products = result[0]?.data || [];
+    const total = result[0]?.totalCount[0]?.count || 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    // console.log(JSON.stringify(result, null, 2));
+
+    const productsDto: ProductDto[] = products.map((p: any) => ({
       ...p,
       _id: p._id.toString(),
       category: p.category.toString(),
@@ -705,92 +1077,36 @@ export const getAllproductsBySubcategory = async (
       })),
     }));
 
-    res
-      .status(200)
-      .json(
-        createSuccessJson("BE_products_of_subcategories_success", productsDto)
-      );
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
-
-//get product - for users
-//Variants without images are treated as drafts and are not sent to the user.
-export const getProduct = async (
-  req: Request<{ productId: string }, {}, {}>,
-  res: Response<ApiResponse<ProductDto>>
-) => {
-  try {
-    const returnedProduct = await Product.findOne({
-      _id: req.params.productId,
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        match: {
-          images: { $exists: true, $ne: [] },
-          isActive: true, // filtrira samo aktivne varijante
-        },
-        select: "-createdAt -updatedAt -cloudianryIds",
-      })
-      .lean();
-
-    if (!returnedProduct) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_product_not_exsist" },
-          ])
-        );
-      return;
-    }
-
-    const productDto: ProductDto = {
-      ...returnedProduct,
-      _id: returnedProduct._id.toString(),
-      category: returnedProduct.category.toString(),
-      subcategory: returnedProduct.subcategory.toString(),
-      variations: returnedProduct.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
+    const productResponseDto: ProductsResponseDto = {
+      page: pageNum,
+      total,
+      totalPages,
+      products: productsDto,
     };
 
     res
       .status(200)
-      .json(createSuccessJson("BE_get_product_success", productDto));
+      .json(createSuccessJson("BE_get_products_success", productResponseDto));
   } catch (error: any) {
+    console.error(error);
     res
       .status(500)
       .json(
         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
       );
-    return;
   }
 };
 
-//get product variation by SKU
+//get product variation by SKU - only for admin
 export const getProductVariantBySku = async (
   req: Request<{ sku: string }, {}, {}>,
   res: Response<ApiResponse<ProductBySku>>
 ) => {
   try {
     const productVariantToFind = await ProductVariant.findOne(
-      { "sizes.SKU": req.params.sku }, // filtriraj po SKU
+      { "sizes.SKU": req.params.sku }, // filter by SKU
       {
-        sizes: { $elemMatch: { SKU: req.params.sku } }, // vrati samo tu veličinu
+        sizes: { $elemMatch: { SKU: req.params.sku } }, // return only this size
         color: 1,
         product_id: 1,
         images: 1,
@@ -810,6 +1126,7 @@ export const getProductVariantBySku = async (
 
     const returnedProductBySku: ProductBySku = {
       ...productVariantToFind,
+      product_id: productVariantToFind.product_id.toString(),
       _id: productVariantToFind._id.toString(),
       sizes: [
         {
@@ -837,7 +1154,7 @@ export const getProductVariantBySku = async (
   }
 };
 
-//get Available Tags for Product
+//get Available Tags for Product - useful for admin panel
 export const returnavailableTagsForProduct = [
   async (
     req: Request<{ productId: string }, {}, {}>,
@@ -880,51 +1197,372 @@ export const returnavailableTagsForProduct = [
   },
 ];
 
-//Add product tag
-export const addTagsToProduct = [
-  validateRequestWithZod(addProductTagBodySchema),
-  async (
-    req: Request<{ productId: string }, {}, TagsToAdd>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const product = await Product.findOne({ _id: req.params.productId });
+//Get available Colors For Product Variation
+export const getAvailableColorsForProductVariation = async (
+  req: Request<{ productId: string }, {}, {}>,
+  res: Response<ApiResponse<AvailableVariantColors>>
+) => {
+  try {
+    const variants = await ProductVariant.find({
+      product_id: req.params.productId,
+    })
+      .select("color -_id")
+      .lean();
 
-      if (!product) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "getProducts", msg: "BE_product_not_exsist" },
-            ])
-          );
-        return;
+    if (!variants) {
+      res.status(200).json(
+        createSuccessJson("BE_all_colors_aviliable", {
+          availableColors: allColorsArray,
+        })
+      );
+      return;
+    }
+
+    const availableColorsForVariant: AvailableVariantColors = {
+      availableColors: [],
+    };
+
+    const allColors = allColorsArray;
+
+    allColors.forEach((color) => {
+      if (!variants.some((c) => c.color === color)) {
+        availableColorsForVariant.availableColors.push(color);
       }
+    });
 
-      const tagsToAdd: ProductTag[] = req.body.tags;
+    res
+      .status(200)
+      .json(
+        createSuccessJson("BE_aviliable_colors", availableColorsForVariant)
+      );
+    return;
+  } catch (error: any) {
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
 
-      product.productTag = product.productTag || [];
+export const softDeleteProduct = async (
+  req: Request<{ productId: string }, {}, {}>,
+  res: Response
+) => {
+  try {
+    const { productId } = req.params;
 
-      const existingTags = new Set(product.productTag);
-      for (const tag of tagsToAdd) {
-        if (!existingTags.has(tag)) {
-          product.productTag.push(tag);
-        }
-      }
-
-      await product.save();
-
-      res.status(200).json(createSuccessJson("BE_tag_added_sucessfully", null));
-    } catch (error: any) {
+    const product = await Product.findById(productId);
+    if (!product) {
       res
-        .status(500)
+        .status(404)
         .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+          createErrorJson([{ type: "softDelete", msg: "BE_product_not_exist" }])
         );
       return;
     }
-  },
-];
+
+    product.isActive = false;
+    await product.save();
+
+    res
+      .status(200)
+      .json(createSuccessJson("BE_product_soft_deleted", { productId }));
+    return;
+  } catch (error: any) {
+    console.error(error);
+    res
+      .status(500)
+      .json(
+        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+      );
+    return;
+  }
+};
+
+//Add product variation image - Local Upload Wokrs
+// export const addProductVariationPics = [
+//   uploadFiles(uploadOptions),
+
+//   async (
+//     req: Request<{ variationId: string; productId: string }, {}, {}>,
+//     res: Response<ApiResponse<null>>
+//   ) => {
+//     try {
+//       const files = req.files as Express.Multer.File[];
+
+//       if (!files || files.length === 0) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
+//           );
+//         return;
+//       }
+//       const variation = await ProductVariant.findOne({
+//         _id: req.params.variationId,
+//       });
+
+//       if (!variation) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([
+//               { type: "addCategory", msg: "BE_variation_not_found" },
+//             ])
+//           );
+//         return;
+//       }
+
+//       const productId = req.params.productId;
+
+//       const product = await Product.findOne({ _id: productId });
+
+//       if (!product) {
+//         res
+//           .status(400)
+//           .json(
+//             createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
+//           );
+//         return;
+//       }
+
+//       let imageUrls: string[] = [];
+
+//       imageUrls = files.map((file) =>
+//         path.relative("uploads", file.path).replace(/\\/g, "/")
+//       );
+
+//       variation.images = variation.images
+//         ? [...variation.images, ...imageUrls]
+//         : imageUrls;
+
+//       await variation.save();
+
+//       res
+//         .status(200)
+//         .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
+//       return;
+//     } catch (error: any) {
+//       console.error(error);
+//       res
+//         .status(500)
+//         .json(
+//           createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//         );
+//       return;
+//     }
+//   },
+// ];
+
+//OLD ROUTES (BEFORE CHANGE IN RELATIONSHIP BETWEEN PRODUCT AND VARIATION)
+// export const getAllproductsBySubcategory = async (
+//   req: Request<{ subcategoryId: string }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto[]>>
+// ) => {
+//   try {
+//     const subcategory = await Category.findOne({
+//       _id: req.params.subcategoryId,
+//       isMainCategory: false,
+//     });
+
+//     if (!subcategory) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
+
+//     const products = await Product.aggregate([
+//       {
+//         $match: {
+//           subcategory: new mongoose.Types.ObjectId(req.params.subcategoryId),
+//           isActive: true,
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "productvariants",
+//           localField: "variations",
+//           foreignField: "_id",
+//           as: "variations",
+//           pipeline: [
+//             {
+//               $match: {
+//                 images: { $exists: true, $ne: [] },
+//                 isActive: true, // dodaje filtriranje po vidljivosti varijante
+//               },
+//             },
+//             {
+//               $project: {
+//                 cloudianryIds: 0, // ovo uklanja polje
+//               },
+//             },
+//           ],
+//         },
+//       },
+//       {
+//         $match: { "variations.0": { $exists: true } }, // zadrži samo proizvode koji imaju bar 1 variant sa slikama
+//       },
+//     ]);
+
+//     const productsDto: ProductDto[] = products.map((p) => ({
+//       ...p,
+//       _id: p._id.toString(),
+//       category: p.category.toString(),
+//       subcategory: p.subcategory.toString(),
+//       variations: p.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     }));
+
+//     res
+//       .status(200)
+//       .json(
+//         createSuccessJson("BE_products_of_subcategories_success", productsDto)
+//       );
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
+
+//get product - for users
+//Variants without images are treated as drafts and are not sent to the user.
+// export const getProduct = async (
+//   req: Request<{ productId: string }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto>>
+// ) => {
+//   try {
+//     const returnedProduct = await Product.findOne({
+//       _id: req.params.productId,
+//     })
+//       .select("-createdAt -updatedAt")
+//       .populate({
+//         path: "variations",
+//         match: {
+//           images: { $exists: true, $ne: [] },
+//           isActive: true, // filtrira samo aktivne varijante
+//         },
+//         select: "-createdAt -updatedAt -cloudianryIds",
+//       })
+//       .lean();
+
+//     if (!returnedProduct) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_product_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
+
+//     const productDto: ProductDto = {
+//       ...returnedProduct,
+//       _id: returnedProduct._id.toString(),
+//       category: returnedProduct.category.toString(),
+//       subcategory: returnedProduct.subcategory.toString(),
+//       variations: returnedProduct.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     };
+
+//     res
+//       .status(200)
+//       .json(createSuccessJson("BE_get_product_success", productDto));
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
+
+//get product - for users
+//Variants without images are treated as drafts and are not sent to the user.
+// export const getProduct = async (
+//   req: Request<{ productId: string }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto>>
+// ) => {
+//   try {
+//     const returnedProduct = await Product.findOne({
+//       _id: req.params.productId,
+//     })
+//       .select("-createdAt -updatedAt")
+//       .populate({
+//         path: "variations",
+//         match: {
+//           images: { $exists: true, $ne: [] },
+//           isActive: true, // filtrira samo aktivne varijante
+//         },
+//         select: "-createdAt -updatedAt -cloudianryIds",
+//       })
+//       .lean();
+
+//     if (!returnedProduct) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_product_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
+
+//     const productDto: ProductDto = {
+//       ...returnedProduct,
+//       _id: returnedProduct._id.toString(),
+//       category: returnedProduct.category.toString(),
+//       subcategory: returnedProduct.subcategory.toString(),
+//       variations: returnedProduct.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     };
+
+//     res
+//       .status(200)
+//       .json(createSuccessJson("BE_get_product_success", productDto));
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
 
 // Get products by tag (useful for pages with highlighted tag)
 // export const getProductsByTag = async (
@@ -1000,172 +1638,288 @@ export const addTagsToProduct = [
 // };
 
 //Get product with all variations- for admin panel
-export const getProductWithAllVariations = async (
-  req: Request<{ productId: string }, {}, {}>,
-  res: Response<ApiResponse<ProductDto>>
-) => {
-  try {
-    const returnedProduct = await Product.findOne({
-      _id: req.params.productId,
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        select: "-createdAt -updatedAt -cloudinaryIds",
-      })
-      .lean();
+// export const getProductWithAllVariations = async (
+//   req: Request<{ productId: string }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto>>
+// ) => {
+//   try {
+//     const returnedProduct = await Product.findOne({
+//       _id: req.params.productId,
+//     })
+//       .select("-createdAt -updatedAt")
+//       .populate({
+//         path: "variations",
+//         select: "-createdAt -updatedAt -cloudinaryIds",
+//       })
+//       .lean();
 
-    if (!returnedProduct) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_product_not_exsist" },
-          ])
-        );
-      return;
-    }
+//     if (!returnedProduct) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_product_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
 
-    const productDto: ProductDto = {
-      ...returnedProduct,
-      _id: returnedProduct._id.toString(),
-      category: returnedProduct.category.toString(),
-      subcategory: returnedProduct.subcategory.toString(),
-      variations: returnedProduct.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
-    };
+//     const productDto: ProductDto = {
+//       ...returnedProduct,
+//       _id: returnedProduct._id.toString(),
+//       category: returnedProduct.category.toString(),
+//       subcategory: returnedProduct.subcategory.toString(),
+//       variations: returnedProduct.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     };
 
-    res
-      .status(200)
-      .json(createSuccessJson("BE_get_product_success", productDto));
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
+//     res
+//       .status(200)
+//       .json(createSuccessJson("BE_get_product_success", productDto));
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
 
-//Get All Products by subcategory, even one without variations- admin panel
-export const getAllproductsBySubcategoryAdmin = async (
-  req: Request<{ subcategoryId: string }, {}, {}>,
-  res: Response<ApiResponse<ProductDto[]>>
-) => {
-  try {
-    const subcategory = await Category.findOne({
-      _id: req.params.subcategoryId,
-      isMainCategory: false,
-    });
+// //Get All Products by subcategory, even one without variations- admin panel
+// export const getAllproductsBySubcategoryAdmin = async (
+//   req: Request<{ subcategoryId: string }, {}, {}>,
+//   res: Response<ApiResponse<ProductDto[]>>
+// ) => {
+//   try {
+//     const subcategory = await Category.findOne({
+//       _id: req.params.subcategoryId,
+//       isMainCategory: false,
+//     });
 
-    if (!subcategory) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_subcategory_not_exsist" },
-          ])
-        );
-      return;
-    }
+//     if (!subcategory) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
 
-    const products = await Product.find({
-      subcategory: req.params.subcategoryId,
-    })
-      .select("-createdAt -updatedAt")
-      .populate({
-        path: "variations",
-        select: "-createdAt -updatedAt -cloudinaryIds",
-      })
-      .lean();
+//     const products = await Product.find({
+//       subcategory: req.params.subcategoryId,
+//     })
+//       .select("-createdAt -updatedAt")
+//       .populate({
+//         path: "variations",
+//         select: "-createdAt -updatedAt -cloudinaryIds",
+//       })
+//       .lean();
 
-    const productsDto: ProductDto[] = products.map((p) => ({
-      ...p,
-      _id: p._id.toString(),
-      category: p.category.toString(),
-      subcategory: p.subcategory.toString(),
-      variations: p.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
-    }));
+//     const productsDto: ProductDto[] = products.map((p) => ({
+//       ...p,
+//       _id: p._id.toString(),
+//       category: p.category.toString(),
+//       subcategory: p.subcategory.toString(),
+//       variations: p.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     }));
 
-    res
-      .status(200)
-      .json(
-        createSuccessJson("BE_get_all_products_admin_success", productsDto)
-      );
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
+//     res
+//       .status(200)
+//       .json(
+//         createSuccessJson("BE_get_all_products_admin_success", productsDto)
+//       );
+//   } catch (error: any) {
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//     return;
+//   }
+// };
 
-//Get available Colors For Product Variation
-export const getAvailableColorsForProductVariation = async (
-  req: Request<{ productId: string }, {}, {}>,
-  res: Response<ApiResponse<AvailableVariantColors>>
-) => {
-  try {
-    const variants = await ProductVariant.find({
-      product_id: req.params.productId,
-    })
-      .select("color -_id")
-      .lean();
+// export const getAllproductsBySubcategoryWithFilters = async (
+//   req: Request<
+//     { subcategoryId: string },
+//     {},
+//     {},
+//     {
+//       material?: Material;
+//       discountPrice?: string;
+//       minPrice?: string;
+//       maxPrice?: string;
+//       color?: BaseColor | ExtendedColor;
+//       size?: Size;
+//       sortOption?: "asc" | "desc";
+//       page?: string;
+//       limit?: string;
+//     }
+//   >,
+//   res: Response<ApiResponse<ProductsResponseDto>>
+// ) => {
+//   try {
+//     const subcategory = await Category.findOne({
+//       _id: req.params.subcategoryId,
+//     });
 
-    if (!variants) {
-      res.status(200).json(
-        createSuccessJson("BE_all_colors_aviliable", {
-          availableColors: allColorsArray,
-        })
-      );
-      return;
-    }
+//     if (!subcategory) {
+//       res
+//         .status(400)
+//         .json(
+//           createErrorJson([
+//             { type: "getProducts", msg: "BE_subcategory_not_exsist" },
+//           ])
+//         );
+//       return;
+//     }
 
-    const availableColorsForVariant: AvailableVariantColors = {
-      availableColors: [],
-    };
+//     const { subcategoryId } = req.params;
+//     const {
+//       color,
+//       size,
+//       sortOption,
+//       maxPrice,
+//       minPrice,
+//       discountPrice,
+//       material,
+//     } = req.query;
 
-    const allColors = allColorsArray;
+//     // Parsiranje query parametara
+//     const min = minPrice ? Number(minPrice) : undefined;
+//     const max = maxPrice ? Number(maxPrice) : undefined;
+//     const discount = discountPrice === "true";
+//     const pageNum = parseInt(req.query.page || "1");
+//     const limitNum = parseInt(req.query.limit || "30");
+//     const skip = (pageNum - 1) * limitNum;
 
-    allColors.forEach((color) => {
-      if (!variants.some((c) => c.color === color)) {
-        availableColorsForVariant.availableColors.push(color);
-      }
-    });
+//     // Filters za product
+//     let productFilter: any = {};
+//     if (material) productFilter.material = material;
+//     if (discount) productFilter.discountPrice = { $gt: 0 };
+//     if (min && max) {
+//       productFilter.price = { $gt: min, $lt: max };
+//     } else if (min) {
+//       productFilter.price = { $gt: min };
+//     } else if (max) {
+//       productFilter.price = { $lt: max };
+//     }
 
-    res
-      .status(200)
-      .json(
-        createSuccessJson("BE_all_colors_aviliable", availableColorsForVariant)
-      );
-    return;
-  } catch (error: any) {
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
+//     // Filters za variation
+//     const variationFilter: any = {
+//       images: { $exists: true, $ne: [] },
+//       isActive: true,
+//     };
+//     if (color) variationFilter.color = color;
+//     if (size) {
+//       variationFilter.sizes = { $elemMatch: { size } };
+//     }
+
+//     // Sort
+//     let sortQuery: any = { createdAt: -1 };
+//     if (sortOption === "asc") {
+//       sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
+//     } else if (sortOption === "desc") {
+//       sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
+//     }
+
+//     // Agregacija
+//     const pipeline: any[] = [
+//       {
+//         $match: {
+//           subcategory: { $in: [new mongoose.Types.ObjectId(subcategoryId)] },
+//           isActive: true,
+//           ...productFilter,
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "productvariants",
+//           localField: "variations",
+//           foreignField: "_id",
+//           as: "variations",
+//           pipeline: [
+//             { $match: variationFilter },
+//             {
+//               $project: {
+//                 cloudianryIds: 0,
+//               },
+//             },
+//           ],
+//         },
+//       },
+//       { $match: { "variations.0": { $exists: true } } },
+//       { $sort: sortQuery },
+//       {
+//         $facet: {
+//           data: [
+//             { $skip: skip },
+//             { $limit: limitNum },
+//             { $project: { createdAt: 0, updatedAt: 0 } },
+//           ],
+//           totalCount: [{ $count: "count" }],
+//         },
+//       },
+//     ];
+
+//     const result = await Product.aggregate(pipeline);
+
+//     const products = result[0]?.data || [];
+//     const total = result[0]?.totalCount[0]?.count || 0;
+//     const totalPages = Math.ceil(total / limitNum);
+
+//     const productsDto: ProductDto[] = products.map((p: any) => ({
+//       ...p,
+//       _id: p._id.toString(),
+//       category: p.category.toString(),
+//       subcategory: p.subcategory.toString(),
+//       variations: p.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     }));
+
+//     const productResponseDto: ProductsResponseDto = {
+//       page: pageNum,
+//       total,
+//       totalPages,
+//       products: productsDto,
+//     };
+
+//     res
+//       .status(200)
+//       .json(createSuccessJson("BE_get_products_success", productResponseDto));
+//   } catch (error: any) {
+//     console.error(error);
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//   }
+// };
 
 //Delete
 //use soft delete instead of this
@@ -1238,6 +1992,158 @@ export const getAvailableColorsForProductVariation = async (
 //   }
 // };
 
+//Get product By Tag
+// export const getProductsByTag = async (
+//   req: Request<
+//     { tag: ProductTag },
+//     {},
+//     {},
+//     {
+//       material?: Material;
+//       discountPrice?: string;
+//       minPrice?: string;
+//       maxPrice?: string;
+//       color?: BaseColor | ExtendedColor;
+//       size?: Size;
+//       sortOption?: "asc" | "desc";
+//       page?: string;
+//       limit?: string;
+//     }
+//   >,
+//   res: Response<ApiResponse<ProductsResponseDto>>
+// ) => {
+//   try {
+//     const { tag } = req.params;
+//     const {
+//       color,
+//       size,
+//       sortOption,
+//       maxPrice,
+//       minPrice,
+//       discountPrice,
+//       material,
+//     } = req.query;
+
+//     // Parsiranje query parametara
+//     const min = minPrice ? Number(minPrice) : undefined;
+//     const max = maxPrice ? Number(maxPrice) : undefined;
+//     const discount = discountPrice === "true";
+//     const pageNum = parseInt(req.query.page || "1");
+//     const limitNum = parseInt(req.query.limit || "30");
+//     const skip = (pageNum - 1) * limitNum;
+
+//     // Filters za product
+//     let productFilter: any = {};
+//     if (material) productFilter.material = material;
+//     if (discount) productFilter.discountPrice = { $gt: 0 };
+//     if (min && max) {
+//       productFilter.price = { $gt: min, $lt: max };
+//     } else if (min) {
+//       productFilter.price = { $gt: min };
+//     } else if (max) {
+//       productFilter.price = { $lt: max };
+//     }
+
+//     // Filters za variation
+//     const variationFilter: any = {
+//       images: { $exists: true, $ne: [] },
+//       isActive: true,
+//     };
+//     if (color) variationFilter.color = color;
+//     if (size) {
+//       variationFilter.sizes = { $elemMatch: { size } };
+//     }
+
+//     // Sort
+//     let sortQuery: any = { createdAt: -1 };
+//     if (sortOption === "asc") {
+//       sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
+//     } else if (sortOption === "desc") {
+//       sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
+//     }
+
+//     // Agregacija
+//     const pipeline: any[] = [
+//       {
+//         $match: {
+//           productTag: tag,
+//           isActive: true,
+//           ...productFilter,
+//         },
+//       },
+//       {
+//         $lookup: {
+//           from: "productvariants",
+//           localField: "variations",
+//           foreignField: "_id",
+//           as: "variations",
+//           pipeline: [
+//             { $match: variationFilter },
+//             {
+//               $project: {
+//                 cloudianryIds: 0,
+//               },
+//             },
+//           ],
+//         },
+//       },
+//       { $match: { "variations.0": { $exists: true } } },
+//       { $sort: sortQuery },
+//       {
+//         $facet: {
+//           data: [
+//             { $skip: skip },
+//             { $limit: limitNum },
+//             { $project: { createdAt: 0, updatedAt: 0 } },
+//           ],
+//           totalCount: [{ $count: "count" }],
+//         },
+//       },
+//     ];
+
+//     const result = await Product.aggregate(pipeline);
+//     const products = result[0]?.data || [];
+//     const total = result[0]?.totalCount[0]?.count || 0;
+//     const totalPages = Math.ceil(total / limitNum);
+
+//     const productsDto: ProductDto[] = products.map((p: any) => ({
+//       ...p,
+//       _id: p._id.toString(),
+//       category: p.category.toString(),
+//       subcategory: p.subcategory.toString(),
+//       variations: p.variations.map((v: any) => ({
+//         ...v,
+//         _id: v._id.toString(),
+//         sizes: v.sizes.map((s: any) => ({
+//           ...s,
+//           _id: s._id.toString(),
+//           isAvailable: s.stock > 0,
+//         })),
+//       })),
+//     }));
+
+//     const productResponseDto: ProductsResponseDto = {
+//       page: pageNum,
+//       total,
+//       totalPages,
+//       products: productsDto,
+//     };
+
+//     res
+//       .status(200)
+//       .json(
+//         createSuccessJson("BE_get_products_by_tag_success", productResponseDto)
+//       );
+//   } catch (error: any) {
+//     console.error(error);
+//     res
+//       .status(500)
+//       .json(
+//         createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
+//       );
+//   }
+// };
+
 // //Delete product variant
 // export const deleteProductVariation = async (
 //   req: Request<{ variationId: string }, {}, {}>,
@@ -1304,518 +2210,3 @@ export const getAvailableColorsForProductVariation = async (
 //     return;
 //   }
 // };
-
-export const softDeleteProduct = async (
-  req: Request<{ productId: string }, {}, {}>,
-  res: Response
-) => {
-  try {
-    const { productId } = req.params;
-
-    const product = await Product.findById(productId);
-    if (!product) {
-      res
-        .status(404)
-        .json(
-          createErrorJson([{ type: "softDelete", msg: "BE_product_not_exist" }])
-        );
-      return;
-    }
-
-    product.isActive = false;
-    await product.save();
-
-    res
-      .status(200)
-      .json(createSuccessJson("BE_product_soft_deleted", { productId }));
-    return;
-  } catch (error: any) {
-    console.error(error);
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-    return;
-  }
-};
-
-//Get product By Tag
-export const getProductsByTag = async (
-  req: Request<
-    { tag: ProductTag },
-    {},
-    {},
-    {
-      material?: Material;
-      discountPrice?: string;
-      minPrice?: string;
-      maxPrice?: string;
-      color?: BaseColor | ExtendedColor;
-      size?: Size;
-      sortOption?: "asc" | "desc";
-      page?: string;
-      limit?: string;
-    }
-  >,
-  res: Response<ApiResponse<ProductsResponseDto>>
-) => {
-  try {
-    const { tag } = req.params;
-    const {
-      color,
-      size,
-      sortOption,
-      maxPrice,
-      minPrice,
-      discountPrice,
-      material,
-    } = req.query;
-
-    // Parsiranje query parametara
-    const min = minPrice ? Number(minPrice) : undefined;
-    const max = maxPrice ? Number(maxPrice) : undefined;
-    const discount = discountPrice === "true";
-    const pageNum = parseInt(req.query.page || "1");
-    const limitNum = parseInt(req.query.limit || "30");
-    const skip = (pageNum - 1) * limitNum;
-
-    // Filters za product
-    let productFilter: any = {};
-    if (material) productFilter.material = material;
-    if (discount) productFilter.discountPrice = { $gt: 0 };
-    if (min && max) {
-      productFilter.price = { $gt: min, $lt: max };
-    } else if (min) {
-      productFilter.price = { $gt: min };
-    } else if (max) {
-      productFilter.price = { $lt: max };
-    }
-
-    // Filters za variation
-    const variationFilter: any = {
-      images: { $exists: true, $ne: [] },
-      isActive: true,
-    };
-    if (color) variationFilter.color = color;
-    if (size) {
-      variationFilter.sizes = { $elemMatch: { size } };
-    }
-
-    // Sort
-    let sortQuery: any = { createdAt: -1 };
-    if (sortOption === "asc") {
-      sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
-    } else if (sortOption === "desc") {
-      sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
-    }
-
-    // Agregacija
-    const pipeline: any[] = [
-      {
-        $match: {
-          productTag: tag,
-          isActive: true,
-          ...productFilter,
-        },
-      },
-      {
-        $lookup: {
-          from: "productvariants",
-          localField: "variations",
-          foreignField: "_id",
-          as: "variations",
-          pipeline: [
-            { $match: variationFilter },
-            {
-              $project: {
-                cloudianryIds: 0,
-              },
-            },
-          ],
-        },
-      },
-      { $match: { "variations.0": { $exists: true } } },
-      { $sort: sortQuery },
-      {
-        $facet: {
-          data: [
-            { $skip: skip },
-            { $limit: limitNum },
-            { $project: { createdAt: 0, updatedAt: 0 } },
-          ],
-          totalCount: [{ $count: "count" }],
-        },
-      },
-    ];
-
-    const result = await Product.aggregate(pipeline);
-    const products = result[0]?.data || [];
-    const total = result[0]?.totalCount[0]?.count || 0;
-    const totalPages = Math.ceil(total / limitNum);
-
-    const productsDto: ProductDto[] = products.map((p: any) => ({
-      ...p,
-      _id: p._id.toString(),
-      category: p.category.toString(),
-      subcategory: p.subcategory.toString(),
-      variations: p.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
-    }));
-
-    const productResponseDto: ProductsResponseDto = {
-      page: pageNum,
-      total,
-      totalPages,
-      products: productsDto,
-    };
-
-    res
-      .status(200)
-      .json(
-        createSuccessJson("BE_get_products_by_tag_success", productResponseDto)
-      );
-  } catch (error: any) {
-    console.error(error);
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-  }
-};
-
-export const getAllproductsBySubcategoryWithFilters = async (
-  req: Request<
-    { subcategoryId: string },
-    {},
-    {},
-    {
-      material?: Material;
-      discountPrice?: string;
-      minPrice?: string;
-      maxPrice?: string;
-      color?: BaseColor | ExtendedColor;
-      size?: Size;
-      sortOption?: "asc" | "desc";
-      page?: string;
-      limit?: string;
-    }
-  >,
-  res: Response<ApiResponse<ProductsResponseDto>>
-) => {
-  try {
-    const subcategory = await Category.findOne({
-      _id: req.params.subcategoryId,
-    });
-
-    if (!subcategory) {
-      res
-        .status(400)
-        .json(
-          createErrorJson([
-            { type: "getProducts", msg: "BE_subcategory_not_exsist" },
-          ])
-        );
-      return;
-    }
-
-    const { subcategoryId } = req.params;
-    const {
-      color,
-      size,
-      sortOption,
-      maxPrice,
-      minPrice,
-      discountPrice,
-      material,
-    } = req.query;
-
-    // Parsiranje query parametara
-    const min = minPrice ? Number(minPrice) : undefined;
-    const max = maxPrice ? Number(maxPrice) : undefined;
-    const discount = discountPrice === "true";
-    const pageNum = parseInt(req.query.page || "1");
-    const limitNum = parseInt(req.query.limit || "30");
-    const skip = (pageNum - 1) * limitNum;
-
-    // Filters za product
-    let productFilter: any = {};
-    if (material) productFilter.material = material;
-    if (discount) productFilter.discountPrice = { $gt: 0 };
-    if (min && max) {
-      productFilter.price = { $gt: min, $lt: max };
-    } else if (min) {
-      productFilter.price = { $gt: min };
-    } else if (max) {
-      productFilter.price = { $lt: max };
-    }
-
-    // Filters za variation
-    const variationFilter: any = {
-      images: { $exists: true, $ne: [] },
-      isActive: true,
-    };
-    if (color) variationFilter.color = color;
-    if (size) {
-      variationFilter.sizes = { $elemMatch: { size } };
-    }
-
-    // Sort
-    let sortQuery: any = { createdAt: -1 };
-    if (sortOption === "asc") {
-      sortQuery = discount ? { discountPrice: 1 } : { price: 1 };
-    } else if (sortOption === "desc") {
-      sortQuery = discount ? { discountPrice: -1 } : { price: -1 };
-    }
-
-    // Agregacija
-    const pipeline: any[] = [
-      {
-        $match: {
-          subcategory: { $in: [new mongoose.Types.ObjectId(subcategoryId)] },
-          isActive: true,
-          ...productFilter,
-        },
-      },
-      {
-        $lookup: {
-          from: "productvariants",
-          localField: "variations",
-          foreignField: "_id",
-          as: "variations",
-          pipeline: [
-            { $match: variationFilter },
-            {
-              $project: {
-                cloudianryIds: 0,
-              },
-            },
-          ],
-        },
-      },
-      { $match: { "variations.0": { $exists: true } } },
-      { $sort: sortQuery },
-      {
-        $facet: {
-          data: [
-            { $skip: skip },
-            { $limit: limitNum },
-            { $project: { createdAt: 0, updatedAt: 0 } },
-          ],
-          totalCount: [{ $count: "count" }],
-        },
-      },
-    ];
-
-    const result = await Product.aggregate(pipeline);
-
-    const products = result[0]?.data || [];
-    const total = result[0]?.totalCount[0]?.count || 0;
-    const totalPages = Math.ceil(total / limitNum);
-
-    const productsDto: ProductDto[] = products.map((p: any) => ({
-      ...p,
-      _id: p._id.toString(),
-      category: p.category.toString(),
-      subcategory: p.subcategory.toString(),
-      variations: p.variations.map((v: any) => ({
-        ...v,
-        _id: v._id.toString(),
-        sizes: v.sizes.map((s: any) => ({
-          ...s,
-          _id: s._id.toString(),
-          isAvailable: s.stock > 0,
-        })),
-      })),
-    }));
-
-    const productResponseDto: ProductsResponseDto = {
-      page: pageNum,
-      total,
-      totalPages,
-      products: productsDto,
-    };
-
-    res
-      .status(200)
-      .json(createSuccessJson("BE_get_products_success", productResponseDto));
-  } catch (error: any) {
-    console.error(error);
-    res
-      .status(500)
-      .json(
-        createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-      );
-  }
-};
-
-//CLOUDINARY
-export const addProductVariationPicsCloudinary = [
-  uploadFilesOnCloudinary(uploadOptions),
-
-  async (
-    req: Request<{ variationId: string; productId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
-          );
-        return;
-      }
-
-      let imageUrls: string[] = [];
-      let cloudianryIds: string[] = [];
-
-      imageUrls = files.map((file) => file.path);
-
-      cloudianryIds = files.map((file) => file.filename);
-
-      const variation = await ProductVariant.findOne({
-        _id: req.params.variationId,
-        product_id: req.params.productId,
-      });
-
-      if (!variation) {
-        await deleteImageFromCloudinary(imageUrls);
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "BE_variation_not_found" },
-            ])
-          );
-        return;
-      }
-
-      const productId = req.params.productId;
-
-      const product = await Product.findOne({ _id: productId });
-
-      if (!product) {
-        await deleteImageFromCloudinary(imageUrls);
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
-          );
-        return;
-      }
-
-      variation.images = imageUrls;
-      variation.cloudinaryIds = cloudianryIds;
-
-      await variation.save();
-
-      res
-        .status(200)
-        .json(createSuccessJson("BE_variant_image_added_sucessfully", null));
-      return;
-    } catch (error: any) {
-      console.error(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];
-
-//CLOUDINARY
-export const updateProductVariationPicsCloudinary = [
-  uploadFilesOnCloudinary(uploadOptions),
-
-  async (
-    req: Request<{ variationId: string; productId: string }, {}, {}>,
-    res: Response<ApiResponse<null>>
-  ) => {
-    try {
-      const files = req.files as any[];
-
-      if (!files || files.length === 0) {
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "general", msg: "BE_image_not_sended" }])
-          );
-        return;
-      }
-
-      let imageUrls: string[] = [];
-      let cloudianryIds: string[] = [];
-
-      imageUrls = files.map((file) => file.path);
-
-      cloudianryIds = files.map((file) => file.filename);
-
-      const variation = await ProductVariant.findOne({
-        _id: req.params.variationId,
-        product_id: req.params.productId,
-      });
-
-      if (!variation) {
-        await deleteImageFromCloudinary(imageUrls);
-        res
-          .status(400)
-          .json(
-            createErrorJson([
-              { type: "addCategory", msg: "BE_variation_not_found" },
-            ])
-          );
-        return;
-      }
-
-      const productId = req.params.productId;
-
-      const product = await Product.findOne({ _id: productId });
-
-      if (!product) {
-        await deleteImageFromCloudinary(imageUrls);
-        res
-          .status(400)
-          .json(
-            createErrorJson([{ type: "addCategory", msg: "product_not_found" }])
-          );
-        return;
-      }
-
-      const odlUrls = variation.images;
-      const olsCloudinaryIds = variation.cloudinaryIds;
-
-      variation.images = imageUrls;
-      variation.cloudinaryIds = cloudianryIds;
-
-      await variation.save();
-
-      await deleteImageFromCloudinary(olsCloudinaryIds);
-
-      res
-        .status(200)
-        .json(createSuccessJson("BE_variant_image_updated_sucessfully", null));
-      return;
-    } catch (error: any) {
-      console.error(error);
-      res
-        .status(500)
-        .json(
-          createErrorJson([{ type: "general", msg: "BE_something_went_wrong" }])
-        );
-      return;
-    }
-  },
-];

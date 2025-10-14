@@ -8,7 +8,7 @@ const SizeInfoSchema = z.object({
   stock: z.number().int().nonnegative(),
 });
 
-export const productVariantSchema: z.ZodType<ProductVariantToAdd> = z
+export const productVariationSchema: z.ZodType<ProductVariantToAdd> = z
   .object({
     product_id: z.string().regex(objectIdRegex, "Invalid ObjectId format"),
     color: z.nativeEnum(BaseColor).or(z.nativeEnum(ExtendedColor)),

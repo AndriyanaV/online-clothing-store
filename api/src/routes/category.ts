@@ -44,7 +44,6 @@ categoryRouter.post(
 );
 
 //Admin can see inactive categories also
-//Need to check do I realy need two routes one for admin and one for user
 categoryRouter.get("/protected/getMainCategoriesAdmin", getMainCategoriesAdmin);
 categoryRouter.get(
   "/protected/getSubcategoriesOfMainCategoryAdmin/:categoryId",
@@ -91,7 +90,7 @@ categoryRouter.patch(
   softDeleteCategory
 );
 
-//For the local upload
+//For the local upload - works
 
 // categoryRouter.post(
 //   "/addCategoryImage/:categoryId",
