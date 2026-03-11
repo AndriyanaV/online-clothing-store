@@ -5,14 +5,9 @@ import {
   addProductVariationPicsCloudinary,
   addTagsToProduct,
   addVariationSize,
-  getAllproductsBySubcategory,
-  getAllproductsBySubcategoryAdmin,
-  getAllproductsBySubcategoryWithFilters,
+  getAllProducts,
   getAvailableColorsForProductVariation,
-  getProduct,
-  getProductsByTag,
   getProductVariantBySku,
-  getProductWithAllVariations,
   returnavailableTagsForProduct,
   softDeleteProduct,
   updateProductBasicInfo,
@@ -20,76 +15,103 @@ import {
   updateProductVariationPicsCloudinary,
 } from "../controllers/productController";
 import addColorAndNameToReqBody from "../middleware/addColorAndNameToReqBody";
+import authMiddleware from "../middleware/authMiddleware";
+import verifyRoleMiddleware from "../middleware/verifyRoleMiddleware";
+import { UserRole } from "../constants/user";
 
 const productRouter = express.Router();
 
-productRouter.post("/addProductBasicInfo", addProductBasicInfo);
-productRouter.post("/addProductVariationInfo", addProductVariationInfo);
+//USER
+//Get
+productRouter.get("/getAllproducts", getAllProducts);
+// productRouter.get("/getProduct/:productId", getProduct);
+// productRouter.get("/getProductsByTag/:tag", getProductsByTag);
+// productRouter.get(
+//   "/getAllproductsBySubcategoryWithFilters/:subcategoryId",
+//   getAllproductsBySubcategoryWithFilters
+// );
+
+//ADMIN
+//Authentication
+productRouter.use(authMiddleware);
+//Authorization
+productRouter.use("/protected", verifyRoleMiddleware(UserRole.admin));
+//Alloewd routes for admin
+productRouter.post("/protected/addProductBasicInfo", addProductBasicInfo);
+productRouter.post(
+  "/protected/addProductVariationInfo",
+  addProductVariationInfo
+);
+productRouter.post("/protected/addTagsToProduct/:productId", addTagsToProduct);
+productRouter.post(
+  "/protected/addVariationSize/:productId/:variationId",
+  addVariationSize
+);
+
+//CLOUDINARY
+productRouter.post(
+  "/protected/addProductVariationPicsCloudinary/:productId/:variationId",
+  addColorAndNameToReqBody,
+  addProductVariationPicsCloudinary
+);
+
+//Routes to update product and variant info (without image)
+productRouter.put(
+  "/protected/protected/updateProductBasicInfo/:productId",
+  updateProductBasicInfo
+);
+productRouter.put(
+  "/protected/protected/updateProductVariantInfo/:variantId",
+  updateProductVariantInfo
+);
+
+//CLOUDINARY
+productRouter.put(
+  "/protected/updateProductVariationPicsCloudinary/:productId/:variationId",
+  addColorAndNameToReqBody,
+  updateProductVariationPicsCloudinary
+);
+
+productRouter.get(
+  "/protected/protected/getProductVariantBySku/:sku",
+  getProductVariantBySku
+);
+productRouter.get(
+  "/protected/returnavailableTagsForProduct/:productId",
+  returnavailableTagsForProduct
+);
+
+//Admin can see inactive also and more fields
+// productRouter.get(
+//   "/protected/getProductWithAllVariations/:productId",
+//   getProductWithAllVariations
+// );
+// productRouter.get(
+//   "/protected/getAllproductsBySubcategoryAdmin/:subcategoryId",
+//   getAllproductsBySubcategoryAdmin
+// );
+productRouter.get(
+  "/protected/getAvailableColorsForProductVariation/:productId",
+  getAvailableColorsForProductVariation
+);
+
+// Soft Delete Product
+productRouter.patch(
+  "/protected/softDeleteProduct/:productId",
+  softDeleteProduct
+);
+
+export default productRouter;
+
+//For Local Upload
 // productRouter.post(
 //   "/addProductVariationPics/:productId/:variationId",
 //   addColorAndNameToReqBody,
 //   addProductVariationPics
 // );
-productRouter.post("/addTagsToProduct/:productId", addTagsToProduct);
-productRouter.post(
-  "/addVariationSize/:productId/:variationId",
-  addVariationSize
-);
 
-//Routes to update product and variant info and image
-productRouter.put("/updateProductBasicInfo/:productId", updateProductBasicInfo);
-productRouter.put(
-  "/updateProductVariantInfo/:variantId",
-  updateProductVariantInfo
-);
 // productRouter.put(
 //   "/updateProductVariationPics/:productId/:variationId",
 //   addColorAndNameToReqBody,
 //   updateProductVariationPics
 // );
-
-//Get
-productRouter.get(
-  "/getAllproductsBySubcategory/:subcategoryId",
-  getAllproductsBySubcategory
-);
-productRouter.get("/getProduct/:productId", getProduct);
-export default productRouter;
-productRouter.get("/getProductVariantBySku/:sku", getProductVariantBySku);
-productRouter.get(
-  "/returnavailableTagsForProduct/:productId",
-  returnavailableTagsForProduct
-);
-productRouter.get("/getProductsByTag/:tag", getProductsByTag);
-productRouter.get(
-  "/getProductWithAllVariations/:productId",
-  getProductWithAllVariations
-);
-productRouter.get(
-  "/getAllproductsBySubcategoryAdmin/:subcategoryId",
-  getAllproductsBySubcategoryAdmin
-);
-productRouter.get(
-  "/getAvailableColorsForProductVariation/:productId",
-  getAvailableColorsForProductVariation
-);
-productRouter.get(
-  "/getAllproductsBySubcategoryWithFilters/:subcategoryId",
-  getAllproductsBySubcategoryWithFilters
-);
-
-// Soft Delete Product
-productRouter.patch("/softDeleteProduct/:productId", softDeleteProduct);
-
-//CLOUDINARY
-productRouter.post(
-  "/addProductVariationPicsCloudinary/:productId/:variationId",
-  addColorAndNameToReqBody,
-  addProductVariationPicsCloudinary
-);
-
-productRouter.put(
-  "/updateProductVariationPicsCloudinary/:productId/:variationId",
-  addColorAndNameToReqBody,
-  updateProductVariationPicsCloudinary
-);

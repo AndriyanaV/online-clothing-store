@@ -24,7 +24,10 @@ export const addProductBasicInfoBodySchema: z.ZodType<ProductBasicInfoToAddDto> 
       ),
       careInstructions: z.nativeEnum(CareInstructions),
       countryBrand: z.nativeEnum(CountryBrand),
-      price: z.number().positive("Price must be positive"),
+      price: z
+        .number()
+        .positive("Price must be positive")
+        .nonnegative("Price must be positive"),
       discountPrice: z
         .number()
         .nonnegative("Discount must be zero or positive")

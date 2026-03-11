@@ -45,10 +45,6 @@ const ProductSchema = new Schema<Product>(
     discountPrice: { type: Number },
     modelCode: { type: String, required: true, unique: true },
     productTag: [{ type: String, enum: Object.values(ProductTag) }],
-
-    variations: [
-      { type: mongoose.Schema.Types.ObjectId, ref: PRODUCT_VARIANT_KEY },
-    ],
     isActive: { type: Boolean, required: true },
   },
   { timestamps: true }

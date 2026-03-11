@@ -22,24 +22,25 @@ export interface Product {
   countryBrand: CountryBrand;
   price: number;
   discountPrice?: number;
-  variations: Array<Types.ObjectId>;
   productTag?: ProductTag[];
   modelCode: string;
   isActive: boolean;
 }
 
 export interface ProductDto
-  extends Omit<
-    Product,
-    "_id" | "category" | "subcategory" | "variations" | "isActive"
-  > {
+  extends Omit<Product, "_id" | "category" | "subcategory" | "isActive"> {
   _id: string;
   category: string;
-  subcategory: string;
-  variations: SizeInfoDto[];
+  subcategory: string[];
 }
 
-export interface AddedProductInfo extends Pick<ProductDto, "_id" | "name"> {}
+export interface AddedProductInfo extends ProductDto {
+  isActive: boolean;
+}
+
+export interface UpdatedProductInfo extends ProductDto {
+  isActive: boolean;
+}
 
 export interface SizeInfo {
   size: Size;
@@ -62,12 +63,14 @@ export interface ProductVariant {
   isActive: boolean;
 }
 
-export interface ProductVariantDto extends Omit<ProductVariant, "_id"> {
+export interface ProductVariantDto
+  extends Omit<ProductVariant, "_id" | "cloudinaryIds" | "product_id"> {
   _id: string;
+  product_id: string;
 }
 
 export interface ProductBasicInfoToAddDto
-  extends Omit<Product, "_id" | "variations" | "category" | "subcategory"> {
+  extends Omit<Product, "_id" | "category" | "subcategory"> {
   category: string;
   subcategory: string[];
 }
@@ -79,22 +82,22 @@ export interface VariantSizeInfo {
   isAviable: boolean;
 }
 
-export interface SizeInfoToAdd extends Omit<SizeInfo, "SKU"> {}
+export interface SizeInfoToAdd extends Omit<SizeInfo, "SKU" | "_id"> {}
 
 export interface SizeInfoToUpdate extends SizeInfoToAdd {}
 
 export interface ProductVariantToAdd
   extends Omit<
     ProductVariant,
-    "_id" | "images" | "product_id" | "hasImages" | "sizes" | "cloudinaryIds"
+    "_id" | "images" | "product_id" | "sizes" | "cloudinaryIds"
   > {
   product_id: string;
   sizes: SizeInfoToAdd[];
 }
 
-export interface ProductVariantAddedDto {
-  _id: string;
-}
+export interface ProductVariantAddedDto extends ProductVariantDto {}
+
+export interface ProductVariantUpdatedDto extends ProductVariantDto {}
 
 export interface addProductVariantPicture {
   product_id: string;
@@ -138,11 +141,14 @@ export interface ProductFilter {
   material?: Material;
   discountPrice?: Object;
   price?: Object;
+  isActive: Boolean;
 }
 
 export interface VariationFilter {
   color?: BaseColor | ExtendedColor;
-  sizes?: Object;
+  size?: string;
+  images: Object;
+  isActive: boolean;
 }
 
 export interface ProductsResponseDto {
