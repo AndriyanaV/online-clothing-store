@@ -15,18 +15,6 @@ import {
 import { userInfo } from "os";
 import authMiddleware from "../middleware/authMiddleware";
 
-// export const me = async (req: Request, res: Response) => {
-//     try {
-//        console.log("sucess")
-//        res.json({ message: 'User data fetched successfully nowwwwa' });
-
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).json({ error: 'Internal server error' });
-
-//     }
-// };
-
 export const changdeRoleToAdmin = async (
   req: Request<{ userId: string }, {}, {}>,
   res: Response<ApiResponse<null>>
@@ -119,7 +107,7 @@ export const getAllUsers = async (
 
     const users = await User.find(filter)
       .select(
-        "-password -createdAt -updatedAt -verificationToken -verificationTokenExpires -resetPasswordToken -verifiedEmail "
+        "-password -createdAt -updatedAt -verificationToken  -verificationTokenExpires -resetPasswordToken -verifiedEmail "
       )
       .lean();
 

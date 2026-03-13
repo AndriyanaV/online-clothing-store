@@ -24,69 +24,69 @@ import addCategoryNameToReqBody from "../middleware/addCategoryNameToReqBody";
 const categoryRouter = express.Router();
 
 //Routes for user
-categoryRouter.get("/getMainCategories", getMainCategories);
+categoryRouter.get("/get-main-categories", getMainCategories);
 categoryRouter.get(
-  "/getSubcategoriesOfMainCategory/:categoryId",
+  "/get-subcategories-of-main-category/:categoryId",
   getSubcategoriesOfMainCategory
 );
-categoryRouter.get("/getCategory/:categoryId", getCategory);
+categoryRouter.get("/get-category/:categoryId", getCategory);
 
 //ADMIN
 //Authentication
 categoryRouter.use(authMiddleware);
-//Authorization
-categoryRouter.use("/protected", verifyRoleMiddleware(UserRole.admin));
+//Authorization - admin can access routes that starts with admin-only
+categoryRouter.use("/protected/admin-only", verifyRoleMiddleware(UserRole.admin));
 //Allowed routes
-categoryRouter.post("/protected/addMainCategoryInfo", addMainCategoryInfo);
+categoryRouter.post("/protected/admin-only/add-main-category-info", addMainCategoryInfo);
 categoryRouter.post(
-  "/protected/addSubcategoryInfo/:categoryId",
+  "/protected/admin-only/add-subcategory-info/:categoryId",
   addSubcategoryInfo
 );
 
 //Admin can see inactive categories also
-categoryRouter.get("/protected/getMainCategoriesAdmin", getMainCategoriesAdmin);
+categoryRouter.get("/protected/admin-only/get-main-categories-admin", getMainCategoriesAdmin);
 categoryRouter.get(
-  "/protected/getSubcategoriesOfMainCategoryAdmin/:categoryId",
+  "/protected/admin-only/get-subcategories-of-main-category-admin/:categoryId",
   getSubcategoriesOfMainCategoryAdmin
 );
 
 categoryRouter.put(
-  "/protected/updateMainCategoryInfo/:categoryId",
+  "/protected/admin-only/update-main-category-info/:categoryId",
   updateMainCategoryInfo
 );
 categoryRouter.put(
-  "/protected/updateSubcategoryMainInfo/:subcategoryId",
+  "/protected/admin-only/update-subcategory-main-info/:subcategoryId",
   updateSubcategory
 );
 
 //CLOUDIANRY - ADD AND UPDATE CATEGORY IMAGE
 categoryRouter.post(
-  "/protected/addCategoryImageOnCloud/:categoryId",
+  "/protected/admin-only/add-category-image-on-cloud/:categoryId",
   addCategoryNameToReqBody,
   addCategoryImage
 );
 categoryRouter.put(
-  "/protected/updateCategoryImage/:categoryId",
+  "/protected/admin-only/update-category-image/:categoryId",
   addCategoryNameToReqBody,
   updateCategoryImage
 );
 
 //SUBCATEGORY ADD AND UPDATE IMAGE- CLOUDINARY
 categoryRouter.post(
-  "/protected/addSubcategoryImage/:categoryId/:subcategoryId",
+  "/protected/admin-only/add-subcategory-image/:categoryId/:subcategoryId",
   addCategoryAndSubcatNameToReqBody,
   addSubCategoryImageCloudinary
 );
 
 categoryRouter.put(
-  "/protected/updateSubcateogryImage/:categoryId/:subcategoryId",
+  "/protected/admin-only/update-subcategory-image/:categoryId/:subcategoryId",
   addCategoryAndSubcatNameToReqBody,
   updateSubCategoryImageCloudinary
 );
 
 //Soft delete by changing status
 categoryRouter.patch(
-  "/protected/deleteCategory/:categoryId",
+  "/protected/admin-only/soft-delete-category/:categoryId",
   softDeleteCategory
 );
 

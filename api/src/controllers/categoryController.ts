@@ -179,7 +179,7 @@ export const addSubcategoryInfo = [
   },
 ];
 
-//Add category image- local upload
+//Add category image- local upload that works
 // export const addCategoryImage = [
 //   uploadFiles(uploadOptions),
 

@@ -17,16 +17,16 @@ const userRouter = express.Router();
 userRouter.use(authMiddleware);
 // router.get('/protected/me', me)
 //Allowed routes
-userRouter.put("/updateUser/:userId", updateUser);
-userRouter.get("/getUser/:userId", getUser);
+userRouter.put("/update-user/:userId", updateUser);
+userRouter.get("/get-user/:userId", getUser);
 
 //Authorization
 //Here the middleware only applies to routes starting with /protected.
-userRouter.use("/protected", verifyRoleMiddleware(UserRole.admin));
+userRouter.use("/protected/admin-only", verifyRoleMiddleware(UserRole.admin));
 // userRouter.use(verifyRoleMiddleware(UserRole.admin));
 //Allowed routes
-userRouter.put("/protected/changeRoleToAdmin/:userId", changdeRoleToAdmin);
-userRouter.get("/protected/getUsers", getAllUsers);
-userRouter.delete("/protected/deleteUser/:userId", deleteUser);
+userRouter.put("/protected/admin-only/change-role-to-admin/:userId", changdeRoleToAdmin);
+userRouter.get("/protected/admin-only/get-users", getAllUsers);
+userRouter.delete("/protected/admin-only/detete-user/:userId", deleteUser);
 
 export default userRouter;

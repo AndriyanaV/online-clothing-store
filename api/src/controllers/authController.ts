@@ -48,6 +48,7 @@ export const register = [
 
     try {
       const existingUser = await User.findOne({ email });
+
       if (existingUser) {
         res
           .status(400)
@@ -150,43 +151,6 @@ export const register = [
   },
 ];
 
-// export const test = [
-//   validateRequestWithZod(registerSchemaRules),
-//   async (
-//     req: Request<{}, {}, RegistrationBody>,
-//     res: Response<
-//       {
-//         radi: string;
-//       },
-//       {}
-//     >
-//   ) => {
-//     console.log(req);
-
-//     const email = req.body?.email || "";
-//     const password = req.body?.password || "";
-
-//     const hashedPassword = password;
-
-//     const newUser = new User({
-//       password: hashedPassword,
-//       firstName: req.body.firstName || "",
-//       lastName: req.body.lastName || "",
-//       createdAt: new Date(),
-//       updatedAt: new Date(),
-//     });
-
-//     newUser.email = email;
-
-//     console.log({ newUser });
-
-//     await newUser.save();
-
-//     res.json({ radi: "user" });
-
-//     return;
-//   },
-// ];
 
 //Login route
 export const login = [
@@ -287,6 +251,7 @@ export const emailVerification = async (
   }
 
   try {
+    
     const user = await User.findOne({ verificationToken: token });
 
     if (!user || user?.verificationTokenExpires < new Date()) {

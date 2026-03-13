@@ -8,18 +8,24 @@ import {
   softDeleteOrder,
 } from "../controllers/orderController";
 import authMiddleware from "../middleware/authMiddleware";
+import verifyRoleMiddleware from "../middleware/verifyRoleMiddleware";
+import { UserRole } from "../constants/user";
 
 const orderRouter = express.Router();
 
-orderRouter.post("/addOrder", authMiddleware, addOrder);
+orderRouter.use(authMiddleware);
+orderRouter.post("/add-order", addOrder);
+orderRouter.get("/get-my-orders", getMyOrders);
 
-orderRouter.put("/changeOrderStatus/:orderId", changeOrderStatus);
-orderRouter.put("/cancelOrder/:orderId", cancelOrder);
+orderRouter.use("/protected/admin-only", verifyRoleMiddleware(UserRole.admin));
+
+orderRouter.put("/protected/admin-only/change-order-status/:orderId", changeOrderStatus);
+orderRouter.put("/protected/admin-only/cancel-order/:orderId", cancelOrder);
 
 //Sorf delete order
-orderRouter.patch("/softDeleteOrder/:orderId", softDeleteOrder);
+orderRouter.patch("/protected/admin-only/soft-delete-order/:orderId", softDeleteOrder);
 
-orderRouter.get("/getOrders", getOrders);
-orderRouter.get("/getMyOrders", authMiddleware, getMyOrders);
+orderRouter.get("/protected/admin-only/get-orders", getOrders);
+
 
 export default orderRouter;

@@ -595,6 +595,7 @@ export const updateProductVariantInfo = [
         return;
       }
 
+      //We can only update stock info 
       const updatedSizes = variant.sizes.map((existingSize) => {
         const incomingSize = req.body.sizes!.find(
           (s) => s.size === existingSize.size
