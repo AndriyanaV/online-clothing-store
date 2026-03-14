@@ -11,4 +11,4 @@ Images are uploaded to Cloudinary with dynamic folders and transformations. For 
 ![uml](doc/UML.jpg)
 
 ## UML DIAGRAM
-![Order creating Sequence Diagram](doc/Order creating Sequence Diagram.jpg)
+![Order creating Sequence Diagram](doc/Order creating Sequence Diagram.jpg).
