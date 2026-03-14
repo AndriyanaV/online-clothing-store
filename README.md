@@ -4,3 +4,6 @@ https://drive.google.com/drive/folders/1HfN8tC-4kowtQ_yCQM13ha0w5qVw1QSc?usp=sha
 Images are uploaded to Cloudinary with dynamic folders and transformations. For the academic project I used direct URLs, and for production I would use public_id and generate the URL via the Cloudinary SDK for scalability and flexibility.
 
 ![Collections](doc/collections.png)
+
+## UML DIAGRAM
+![Collections](doc/UML.jpg)
