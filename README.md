@@ -12,3 +12,6 @@ Images are uploaded to Cloudinary with dynamic folders and transformations. For 
 
 ## Order Creating Sequence Diagram
 ![Order creating Sequence Diagram](doc/OrderCreatingSequenceDiagram.jpg).
+
+## User Login Sequence Diagram
+![User Login Sequence Diagram](doc/UserLoginSequenceDiagram.jpg).
